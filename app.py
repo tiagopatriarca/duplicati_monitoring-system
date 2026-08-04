@@ -605,6 +605,101 @@ def api_delete_group(group_id):
     db.session.commit()
     return jsonify({'success': True})
 
+def parse_duplicati_payload(data):
+    """
+    Extrai status, tamanho em bytes e duração de qualquer versão de JSON ou Form do Duplicati.
+    """
+    if not isinstance(data, dict):
+        return {'status': 'Success', 'bytes_copied': 0, 'duration_seconds': 0, 'backup_name': None}
+
+    dict_sources = [
+        data,
+        data.get('Data', {}) if isinstance(data.get('Data'), dict) else {},
+        data.get('Main', {}) if isinstance(data.get('Main'), dict) else {},
+        data.get('Extra', {}) if isinstance(data.get('Extra'), dict) else {},
+        data.get('Result', {}) if isinstance(data.get('Result'), dict) else {}
+    ]
+
+    backup_name = None
+    for src in dict_sources:
+        candidate = src.get('BackupName') or src.get('backup_name') or src.get('OperationName')
+        if candidate and isinstance(candidate, str) and candidate.strip():
+            backup_name = candidate.strip()
+            break
+
+    status = 'Success'
+    for src in dict_sources:
+        candidate = src.get('ParsedResult') or src.get('Result') or src.get('status')
+        if candidate and isinstance(candidate, str):
+            candidate_str = candidate.strip()
+            if candidate_str in ('Success', 'Warning', 'Error', 'Fatal'):
+                status = candidate_str
+                break
+
+    bytes_copied = 0
+    for src in dict_sources:
+        val = (
+            src.get('BytesUploaded') or 
+            src.get('SizeOfAddedFiles') or 
+            src.get('SizeOfOpenedFiles') or 
+            src.get('SizeOfExaminedFiles') or 
+            src.get('size')
+        )
+        if val is not None:
+            try:
+                val_int = int(float(str(val)))
+                if val_int > 0:
+                    bytes_copied = val_int
+                    break
+            except (ValueError, TypeError):
+                pass
+
+    duration_seconds = 0
+    for src in dict_sources:
+        dur_val = src.get('Duration')
+        if dur_val:
+            dur_str = str(dur_val).strip()
+            try:
+                if ':' in dur_str:
+                    time_part = dur_str.split('.')[0]
+                    parts = time_part.split(':')
+                    if len(parts) == 3:
+                        duration_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                    elif len(parts) == 2:
+                        duration_seconds = int(parts[0]) * 60 + int(parts[1])
+                else:
+                    duration_seconds = int(float(dur_str))
+                if duration_seconds > 0:
+                    break
+            except Exception:
+                pass
+
+    if duration_seconds == 0:
+        begin_str = None
+        end_str = None
+        for src in dict_sources:
+            if not begin_str: begin_str = src.get('BeginTime') or src.get('Begin') or src.get('StartTime')
+            if not end_str: end_str = src.get('EndTime') or src.get('End') or src.get('StopTime')
+
+        if begin_str and end_str:
+            try:
+                b_str = str(begin_str).split('.')[0].replace('Z', '')
+                e_str = str(end_str).split('.')[0].replace('Z', '')
+                dt_begin = datetime.fromisoformat(b_str)
+                dt_end = datetime.fromisoformat(e_str)
+                diff = int((dt_end - dt_begin).total_seconds())
+                if diff > 0:
+                    duration_seconds = diff
+            except Exception:
+                pass
+
+    return {
+        'backup_name': backup_name,
+        'status': status,
+        'bytes_copied': bytes_copied,
+        'duration_seconds': duration_seconds
+    }
+
 # --- RECEPTORES PÚBLICOS DE WEBHOOK DO DUPLICATI ---
 
 @app.route('/api/webhook/job/<webhook_token>', methods=['POST', 'GET'])
@@ -612,7 +707,6 @@ def api_delete_group(group_id):
 def webhook_duplicati(webhook_token=None):
     """
     Receptor universal e por Token Único de Webhook.
-    Se o token for informado na URL (/api/webhook/job/job_xyz), associa diretamente ao Job correto!
     """
     try:
         data = {}
@@ -625,7 +719,6 @@ def webhook_duplicati(webhook_token=None):
             except Exception:
                 data = request.form.to_dict()
 
-        # Tentar obter o token da URL ou query string
         if not webhook_token:
             webhook_token = request.args.get('token')
 
@@ -633,54 +726,12 @@ def webhook_duplicati(webhook_token=None):
         if webhook_token:
             target_job = Job.query.filter_by(webhook_token=webhook_token).first()
 
-        backup_name = (
-            data.get('Extra', {}).get('BackupName') or 
-            data.get('BackupName') or 
-            data.get('backup_name') or 
-            data.get('OperationName') or 
-            (target_job.job_name if target_job else 'Backup Desconhecido')
-        )
+        parsed = parse_duplicati_payload(data)
+        backup_name = parsed['backup_name'] or (target_job.job_name if target_job else 'Backup Desconhecido')
+        status = parsed['status']
+        bytes_copied = parsed['bytes_copied']
+        duration_seconds = parsed['duration_seconds']
 
-        parsed_result = (
-            data.get('ParsedResult') or 
-            data.get('Main', {}).get('ParsedResult') or 
-            data.get('Result') or 
-            'Success'
-        )
-
-        status_map = {'Success': 'Success', 'Warning': 'Warning', 'Error': 'Error', 'Fatal': 'Fatal'}
-        status = status_map.get(parsed_result, 'Success')
-
-        bytes_copied = 0
-        main_data = data.get('Main', {})
-        if isinstance(main_data, dict):
-            bytes_copied = (
-                main_data.get('SizeOfAddedFiles', 0) or 
-                main_data.get('BytesUploaded', 0) or 
-                main_data.get('SizeOfExaminedFiles', 0)
-            )
-        if not bytes_copied:
-            bytes_copied = data.get('BytesUploaded', 0) or data.get('SizeOfAddedFiles', 0)
-
-        try:
-            bytes_copied = int(bytes_copied)
-        except Exception:
-            bytes_copied = 0
-
-        duration_seconds = 0
-        duration_str = main_data.get('Duration') or data.get('Duration')
-        if duration_str:
-            try:
-                if ':' in str(duration_str):
-                    parts = str(duration_str).split('.')[0].split(':')
-                    if len(parts) == 3:
-                        duration_seconds = int(parts[0])*3600 + int(parts[1])*60 + int(parts[2])
-                else:
-                    duration_seconds = int(float(duration_str))
-            except Exception:
-                duration_seconds = 0
-
-        # Se não encontrou pelo token, tenta pelo nome do backup
         if not target_job:
             target_job = Job.query.filter_by(job_name=backup_name).first()
 
@@ -708,7 +759,7 @@ def webhook_duplicati(webhook_token=None):
             bytes_copied=bytes_copied,
             status=status,
             duration_seconds=duration_seconds,
-            log_summary=f"Recebido via Webhook (Job: {target_job.job_name}). Status: {parsed_result}",
+            log_summary=f"Recebido via Webhook (Job: {target_job.job_name}). Status: {status}",
             raw_payload=json.dumps(data, ensure_ascii=False)
         )
         db.session.add(result)
@@ -718,7 +769,9 @@ def webhook_duplicati(webhook_token=None):
             'success': True,
             'message': f"Resultado do backup '{target_job.job_name}' registrado com sucesso!",
             'job_id': target_job.id,
-            'result_id': result.id
+            'result_id': result.id,
+            'bytes_copied': bytes_copied,
+            'duration_seconds': duration_seconds
         }), 200
 
     except Exception as e:
