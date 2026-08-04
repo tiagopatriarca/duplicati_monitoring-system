@@ -154,18 +154,24 @@ async function createClient(event) {
     const contact_phone = document.getElementById('client-phone').value;
     const notes = document.getElementById('client-notes').value;
 
-    const res = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, contact_phone, notes })
-    });
+    try {
+        const res = await fetch('/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, contact_phone, notes })
+        });
 
-    if (res.ok) {
-        closeModal('modal-client');
-        document.getElementById('form-client').reset();
-        loadClientsPageData();
-    } else {
-        alert('Erro ao cadastrar cliente');
+        const data = await res.json();
+
+        if (res.ok) {
+            closeModal('modal-client');
+            document.getElementById('form-client').reset();
+            loadClientsPageData();
+        } else {
+            alert(data.error || 'Erro ao cadastrar cliente');
+        }
+    } catch (err) {
+        alert('Erro ao se comunicar com o servidor: ' + err.message);
     }
 }
 
@@ -180,32 +186,56 @@ async function createJob(event) {
     const checkboxes = document.querySelectorAll('input[name="days"]:checked');
     const days_of_week = Array.from(checkboxes).map(cb => cb.value);
 
-    const res = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id, job_name, frequency_per_day, expected_time, days_of_week })
-    });
+    try {
+        const res = await fetch('/api/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_id, job_name, frequency_per_day, expected_time, days_of_week })
+        });
 
-    if (res.ok) {
-        closeModal('modal-job');
-        document.getElementById('form-job').reset();
-        loadClientsPageData();
-    } else {
-        alert('Erro ao cadastrar job');
+        const data = await res.json();
+
+        if (res.ok) {
+            closeModal('modal-job');
+            document.getElementById('form-job').reset();
+            loadClientsPageData();
+        } else {
+            alert(data.error || 'Erro ao cadastrar job');
+        }
+    } catch (err) {
+        alert('Erro ao se comunicar com o servidor: ' + err.message);
     }
 }
 
 async function deleteClient(id) {
     if (confirm('Deseja realmente excluir este cliente e todos os seus jobs?')) {
-        await fetch(`/api/clients/${id}`, { method: 'DELETE' });
-        loadClientsPageData();
+        try {
+            const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (res.ok) {
+                loadClientsPageData();
+            } else {
+                alert(data.error || 'Erro ao excluir cliente');
+            }
+        } catch (err) {
+            alert('Erro de rede ao excluir cliente');
+        }
     }
 }
 
 async function deleteJob(id) {
     if (confirm('Deseja realmente excluir este job?')) {
-        await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
-        loadClientsPageData();
+        try {
+            const res = await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (res.ok) {
+                loadClientsPageData();
+            } else {
+                alert(data.error || 'Erro ao excluir job');
+            }
+        } catch (err) {
+            alert('Erro de rede ao excluir job');
+        }
     }
 }
 

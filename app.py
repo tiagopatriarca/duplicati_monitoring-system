@@ -63,6 +63,62 @@ def seed_initial_data():
     db.session.add_all([r1, r2, r3, r4])
     db.session.commit()
 
+# --- INICIALIZAÇÃO DO BANCO DE DADOS ---
+
+def init_db_with_fallback():
+    """
+    Tenta conectar ao MySQL. Se falhar e a flag de fallback estiver ativa,
+    alterna automaticamente para SQLite em arquivo local.
+    """
+    try:
+        db.create_all()
+        print("Conectado ao Banco de Dados MySQL com sucesso!")
+    except Exception as e:
+        print(f"Aviso: Não foi possível conectar ao MySQL ({e}).")
+        if app.config.get('USE_SQLITE_FALLBACK'):
+            print("Ativando banco de dados local de fallback SQLite (duplicati_local.db)...")
+            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///duplicati_local.db'
+            db.init_app(app)
+            db.create_all()
+            print("Banco de dados SQLite inicializado!")
+
+    try:
+        # Inserir dados iniciais se o banco estiver completamente vazio
+        if Client.query.count() == 0:
+            seed_initial_data()
+    except Exception as e:
+        print(f"Erro ao verificar/inserir dados iniciais: {e}")
+
+def seed_initial_data():
+    """Insere dados de exemplo para facilitar a primeira navegação."""
+    c1 = Client(name="Empresa Alfa TI", email="ti@alfa.com.br", contact_phone="(11) 98888-1111", notes="Servidores Principais")
+    c2 = Client(name="Beta Logística", email="suporte@betalog.com", contact_phone="(21) 97777-2222", notes="Filial Rio")
+    c3 = Client(name="Gama Saúde", email="admin@gamasaude.med.br", contact_phone="(31) 96666-3333", notes="Prontuários eletrônicos")
+    
+    db.session.add_all([c1, c2, c3])
+    db.session.commit()
+
+    j1 = Job(client_id=c1.id, job_name="Alfa-DB-Backup", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="23:00")
+    j2 = Job(client_id=c1.id, job_name="Alfa-Arquivos-PDF", frequency_per_day=2, days_of_week="MON,TUE,WED,THU,FRI", expected_time="12:00,18:00")
+    j3 = Job(client_id=c2.id, job_name="Beta-ERP-Daily", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI", expected_time="20:00")
+    j4 = Job(client_id=c3.id, job_name="Gama-Prontuarios-Full", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="02:00")
+    
+    db.session.add_all([j1, j2, j3, j4])
+    db.session.commit()
+
+    now = datetime.now()
+    r1 = JobResult(job_id=j1.id, execution_date=now - timedelta(days=1), bytes_copied=15420000000, status="Success", duration_seconds=1450, log_summary="Backup concluído com sucesso.")
+    r2 = JobResult(job_id=j2.id, execution_date=now - timedelta(days=1), bytes_copied=420000000, status="Success", duration_seconds=120, log_summary="Backup parcial efetuado.")
+    r3 = JobResult(job_id=j3.id, execution_date=now - timedelta(days=1), bytes_copied=8900000000, status="Warning", duration_seconds=2100, log_summary="Alerta: 2 arquivos bloqueados durante a leitura.")
+    r4 = JobResult(job_id=j1.id, execution_date=now, bytes_copied=16200000000, status="Success", duration_seconds=1520, log_summary="Backup diário concluído.")
+    
+    db.session.add_all([r1, r2, r3, r4])
+    db.session.commit()
+
+# Inicializar Banco de Dados tanto em execução via `python app.py` quanto em `Gunicorn`
+with app.app_context():
+    init_db_with_fallback()
+
 # --- ROTAS DA INTERFACE WEB ---
 
 @app.route('/')
@@ -96,109 +152,134 @@ def api_dashboard_stats():
     except ValueError:
         target_date = date.today()
 
-    total_clients = Client.query.count()
-    total_jobs = Job.query.filter_by(active=True).count()
+    try:
+        total_clients = Client.query.count()
+        total_jobs = Job.query.filter_by(active=True).count()
 
-    # Execuções da data especificada
-    start_dt = datetime.combine(target_date, datetime.min.time())
-    end_dt = datetime.combine(target_date, datetime.max.time())
-    
-    results_today = JobResult.query.filter(
-        JobResult.execution_date >= start_dt,
-        JobResult.execution_date <= end_dt
-    ).all()
+        start_dt = datetime.combine(target_date, datetime.min.time())
+        end_dt = datetime.combine(target_date, datetime.max.time())
+        
+        results_today = JobResult.query.filter(
+            JobResult.execution_date >= start_dt,
+            JobResult.execution_date <= end_dt
+        ).all()
 
-    success_today = sum(1 for r in results_today if r.status == 'Success')
-    warning_today = sum(1 for r in results_today if r.status == 'Warning')
-    error_today = sum(1 for r in results_today if r.status in ('Error', 'Fatal'))
-    total_bytes_today = sum(r.bytes_copied for r in results_today)
+        success_today = sum(1 for r in results_today if r.status == 'Success')
+        warning_today = sum(1 for r in results_today if r.status == 'Warning')
+        error_today = sum(1 for r in results_today if r.status in ('Error', 'Fatal'))
+        total_bytes_today = sum(r.bytes_copied for r in results_today)
 
-    # Identificar jobs pendentes/não executados
-    missed_jobs = check_missed_jobs(target_date)
+        missed_jobs = check_missed_jobs(target_date)
+        recent_results = JobResult.query.order_by(JobResult.execution_date.desc()).limit(10).all()
 
-    # Últimos 10 resultados para a tabela rápida do Dashboard
-    recent_results = JobResult.query.order_by(JobResult.execution_date.desc()).limit(10).all()
-
-    return jsonify({
-        'date': target_date.strftime('%Y-%m-%d'),
-        'total_clients': total_clients,
-        'total_jobs': total_jobs,
-        'success_today': success_today,
-        'warning_today': warning_today,
-        'error_today': error_today,
-        'missed_count': len(missed_jobs),
-        'total_bytes_today_formatted': format_bytes(total_bytes_today),
-        'missed_jobs': missed_jobs,
-        'recent_results': [r.to_dict() for r in recent_results]
-    })
+        return jsonify({
+            'date': target_date.strftime('%Y-%m-%d'),
+            'total_clients': total_clients,
+            'total_jobs': total_jobs,
+            'success_today': success_today,
+            'warning_today': warning_today,
+            'error_today': error_today,
+            'missed_count': len(missed_jobs),
+            'total_bytes_today_formatted': format_bytes(total_bytes_today),
+            'missed_jobs': missed_jobs,
+            'recent_results': [r.to_dict() for r in recent_results]
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Erro ao obter dados do dashboard: {str(e)}'}), 500
 
 @app.route('/api/clients', methods=['GET', 'POST'])
 def api_clients():
     if request.method == 'GET':
-        clients = Client.query.order_by(Client.name).all()
-        return jsonify([c.to_dict() for c in clients])
+        try:
+            clients = Client.query.order_by(Client.name).all()
+            return jsonify([c.to_dict() for c in clients])
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao listar clientes: {str(e)}'}), 500
 
     if request.method == 'POST':
-        data = request.json or {}
-        name = data.get('name')
-        if not name:
-            return jsonify({'error': 'Nome do cliente é obrigatório'}), 400
+        try:
+            data = request.json or {}
+            name = data.get('name')
+            if not name:
+                return jsonify({'error': 'Nome do cliente é obrigatório'}), 400
 
-        client = Client(
-            name=name,
-            email=data.get('email'),
-            contact_phone=data.get('contact_phone'),
-            notes=data.get('notes')
-        )
-        db.session.add(client)
-        db.session.commit()
-        return jsonify(client.to_dict()), 201
+            client = Client(
+                name=name,
+                email=data.get('email'),
+                contact_phone=data.get('contact_phone'),
+                notes=data.get('notes')
+            )
+            db.session.add(client)
+            db.session.commit()
+            return jsonify(client.to_dict()), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao salvar cliente: {str(e)}'}), 500
 
 @app.route('/api/clients/<int:client_id>', methods=['DELETE'])
 def api_delete_client(client_id):
-    client = Client.query.get_or_404(client_id)
-    db.session.delete(client)
-    db.session.commit()
-    return jsonify({'success': True, 'message': 'Cliente removido com sucesso'})
+    try:
+        client = Client.query.get_or_404(client_id)
+        db.session.delete(client)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Cliente removido com sucesso'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Erro ao excluir cliente: {str(e)}'}), 500
 
 @app.route('/api/jobs', methods=['GET', 'POST'])
 def api_jobs():
     if request.method == 'GET':
-        jobs = Job.query.order_by(Job.job_name).all()
-        return jsonify([j.to_dict() for j in jobs])
+        try:
+            jobs = Job.query.order_by(Job.job_name).all()
+            return jsonify([j.to_dict() for j in jobs])
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao listar jobs: {str(e)}'}), 500
 
     if request.method == 'POST':
-        data = request.json or {}
-        client_id = data.get('client_id')
-        job_name = data.get('job_name')
-        
-        if not client_id or not job_name:
-            return jsonify({'error': 'Cliente e Nome do Job são obrigatórios'}), 400
+        try:
+            data = request.json or {}
+            client_id = data.get('client_id')
+            job_name = data.get('job_name')
+            
+            if not client_id or not job_name:
+                return jsonify({'error': 'Cliente e Nome do Job são obrigatórios'}), 400
 
-        days_list = data.get('days_of_week', ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'])
-        if isinstance(days_list, list):
-            days_str = ','.join(days_list)
-        else:
-            days_str = str(days_list)
+            days_list = data.get('days_of_week', ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'])
+            if isinstance(days_list, list):
+                days_str = ','.join(days_list)
+            else:
+                days_str = str(days_list)
 
-        job = Job(
-            client_id=client_id,
-            job_name=job_name,
-            frequency_per_day=int(data.get('frequency_per_day', 1)),
-            days_of_week=days_str,
-            expected_time=data.get('expected_time', '22:00'),
-            active=data.get('active', True)
-        )
-        db.session.add(job)
-        db.session.commit()
-        return jsonify(job.to_dict()), 201
+            job = Job(
+                client_id=int(client_id),
+                job_name=job_name,
+                frequency_per_day=int(data.get('frequency_per_day', 1)),
+                days_of_week=days_str,
+                expected_time=data.get('expected_time', '22:00'),
+                active=data.get('active', True)
+            )
+            db.session.add(job)
+            db.session.commit()
+            return jsonify(job.to_dict()), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao salvar job: {str(e)}'}), 500
 
 @app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
 def api_delete_job(job_id):
-    job = Job.query.get_or_404(job_id)
-    db.session.delete(job)
-    db.session.commit()
-    return jsonify({'success': True, 'message': 'Job removido com sucesso'})
+    try:
+        job = Job.query.get_or_404(job_id)
+        db.session.delete(job)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Job removido com sucesso'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Erro ao excluir job: {str(e)}'}), 500
+
 
 @app.route('/api/history')
 def api_history():
