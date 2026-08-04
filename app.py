@@ -2,11 +2,12 @@ import json
 import csv
 import io
 from datetime import datetime, date, timedelta
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, flash
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from sqlalchemy.exc import OperationalError
 
 from config import Config
-from database import db, Client, Job, JobResult
+from database import db, Client, Job, JobResult, User, Group, group_clients
 from utils import check_missed_jobs, format_bytes, format_duration
 
 app = Flask(__name__)
@@ -15,137 +16,168 @@ app.config.from_object(Config)
 # Inicializar Banco de Dados
 db.init_app(app)
 
-def init_db_with_fallback():
-    """
-    Tenta conectar ao MySQL. Se falhar e a flag de fallback estiver ativa,
-    alterna automaticamente para SQLite em arquivo local.
-    """
-    with app.app_context():
-        try:
-            db.create_all()
-            print("Conectado ao Banco de Dados MySQL com sucesso!")
-        except Exception as e:
-            print(f"Aviso: Não foi possível conectar ao MySQL ({e}).")
-            if app.config.get('USE_SQLITE_FALLBACK'):
-                print("Ativando banco de dados local de fallback SQLite (duplicati_local.db)...")
-                app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///duplicati_local.db'
-                db.init_app(app)
-                db.create_all()
-                print("Banco de dados SQLite inicializado!")
+# Configurar Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = "Por favor, faça login para acessar esta página."
 
-        # Inserir dados iniciais se o banco estiver completamente vazio
-        if Client.query.count() == 0:
-            seed_initial_data()
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
-def seed_initial_data():
-    """Insere dados de exemplo para facilitar a primeira navegação."""
-    c1 = Client(name="Empresa Alfa TI", email="ti@alfa.com.br", contact_phone="(11) 98888-1111", notes="Servidores Principais")
-    c2 = Client(name="Beta Logística", email="suporte@betalog.com", contact_phone="(21) 97777-2222", notes="Filial Rio")
-    c3 = Client(name="Gama Saúde", email="admin@gamasaude.med.br", contact_phone="(31) 96666-3333", notes="Prontuários eletrônicos")
-    
-    db.session.add_all([c1, c2, c3])
-    db.session.commit()
-
-    j1 = Job(client_id=c1.id, job_name="Alfa-DB-Backup", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="23:00")
-    j2 = Job(client_id=c1.id, job_name="Alfa-Arquivos-PDF", frequency_per_day=2, days_of_week="MON,TUE,WED,THU,FRI", expected_time="12:00,18:00")
-    j3 = Job(client_id=c2.id, job_name="Beta-ERP-Daily", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI", expected_time="20:00")
-    j4 = Job(client_id=c3.id, job_name="Gama-Prontuarios-Full", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="02:00")
-    
-    db.session.add_all([j1, j2, j3, j4])
-    db.session.commit()
-
-    now = datetime.now()
-    r1 = JobResult(job_id=j1.id, execution_date=now - timedelta(days=1), bytes_copied=15420000000, status="Success", duration_seconds=1450, log_summary="Backup concluído com sucesso.")
-    r2 = JobResult(job_id=j2.id, execution_date=now - timedelta(days=1), bytes_copied=420000000, status="Success", duration_seconds=120, log_summary="Backup parcial efetuado.")
-    r3 = JobResult(job_id=j3.id, execution_date=now - timedelta(days=1), bytes_copied=8900000000, status="Warning", duration_seconds=2100, log_summary="Alerta: 2 arquivos bloqueados durante a leitura.")
-    r4 = JobResult(job_id=j1.id, execution_date=now, bytes_copied=16200000000, status="Success", duration_seconds=1520, log_summary="Backup diário concluído.")
-    
-    db.session.add_all([r1, r2, r3, r4])
-    db.session.commit()
-
-# --- INICIALIZAÇÃO DO BANCO DE DADOS ---
+# --- INICIALIZAÇÃO DO BANCO DE DADOS E SEED ---
 
 def init_db_with_fallback():
-    """
-    Tenta conectar ao MySQL. Se falhar e a flag de fallback estiver ativa,
-    alterna automaticamente para SQLite em arquivo local.
-    """
+    """Tenta conectar ao MySQL. Se falhar, alterna para SQLite local."""
     try:
         db.create_all()
         print("Conectado ao Banco de Dados MySQL com sucesso!")
     except Exception as e:
         print(f"Aviso: Não foi possível conectar ao MySQL ({e}).")
         if app.config.get('USE_SQLITE_FALLBACK'):
-            print("Ativando banco de dados local de fallback SQLite (duplicati_local.db)...")
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///duplicati_local.db'
             db.init_app(app)
             db.create_all()
-            print("Banco de dados SQLite inicializado!")
 
     try:
-        # Inserir dados iniciais se o banco estiver completamente vazio
-        if Client.query.count() == 0:
-            seed_initial_data()
+        seed_initial_data()
     except Exception as e:
-        print(f"Erro ao verificar/inserir dados iniciais: {e}")
+        print(f"Aviso na inicialização de dados: {e}")
 
 def seed_initial_data():
-    """Insere dados de exemplo para facilitar a primeira navegação."""
-    c1 = Client(name="Empresa Alfa TI", email="ti@alfa.com.br", contact_phone="(11) 98888-1111", notes="Servidores Principais")
-    c2 = Client(name="Beta Logística", email="suporte@betalog.com", contact_phone="(21) 97777-2222", notes="Filial Rio")
-    c3 = Client(name="Gama Saúde", email="admin@gamasaude.med.br", contact_phone="(31) 96666-3333", notes="Prontuários eletrônicos")
-    
-    db.session.add_all([c1, c2, c3])
-    db.session.commit()
+    """Garante a existência do Grupo Admin e Usuário Admin inicial se o banco for novo."""
+    admin_group = Group.query.filter_by(name="Administradores").first()
+    if not admin_group:
+        admin_group = Group(
+            name="Administradores",
+            description="Acesso total a todos os clientes e gerenciamento de usuários",
+            can_manage_users=True,
+            can_manage_clients=True,
+            can_view_all_clients=True
+        )
+        db.session.add(admin_group)
+        db.session.commit()
 
-    j1 = Job(client_id=c1.id, job_name="Alfa-DB-Backup", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="23:00")
-    j2 = Job(client_id=c1.id, job_name="Alfa-Arquivos-PDF", frequency_per_day=2, days_of_week="MON,TUE,WED,THU,FRI", expected_time="12:00,18:00")
-    j3 = Job(client_id=c2.id, job_name="Beta-ERP-Daily", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI", expected_time="20:00")
-    j4 = Job(client_id=c3.id, job_name="Gama-Prontuarios-Full", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="02:00")
-    
-    db.session.add_all([j1, j2, j3, j4])
-    db.session.commit()
+    support_group = Group.query.filter_by(name="Técnicos de Suporte").first()
+    if not support_group:
+        support_group = Group(
+            name="Técnicos de Suporte",
+            description="Acesso de monitoramento a clientes específicos",
+            can_manage_users=False,
+            can_manage_clients=False,
+            can_view_all_clients=False
+        )
+        db.session.add(support_group)
+        db.session.commit()
 
-    now = datetime.now()
-    r1 = JobResult(job_id=j1.id, execution_date=now - timedelta(days=1), bytes_copied=15420000000, status="Success", duration_seconds=1450, log_summary="Backup concluído com sucesso.")
-    r2 = JobResult(job_id=j2.id, execution_date=now - timedelta(days=1), bytes_copied=420000000, status="Success", duration_seconds=120, log_summary="Backup parcial efetuado.")
-    r3 = JobResult(job_id=j3.id, execution_date=now - timedelta(days=1), bytes_copied=8900000000, status="Warning", duration_seconds=2100, log_summary="Alerta: 2 arquivos bloqueados durante a leitura.")
-    r4 = JobResult(job_id=j1.id, execution_date=now, bytes_copied=16200000000, status="Success", duration_seconds=1520, log_summary="Backup diário concluído.")
-    
-    db.session.add_all([r1, r2, r3, r4])
-    db.session.commit()
+    admin_user = User.query.filter_by(username="admin").first()
+    if not admin_user:
+        admin_user = User(
+            username="admin",
+            email="admin@duplicatishield.com",
+            group_id=admin_group.id,
+            active=True
+        )
+        admin_user.set_password("admin123")
+        db.session.add(admin_user)
+        db.session.commit()
 
-# Inicializar Banco de Dados tanto em execução via `python app.py` quanto em `Gunicorn`
+    if Client.query.count() == 0:
+        c1 = Client(name="Empresa Alfa TI", email="ti@alfa.com.br", contact_phone="(11) 98888-1111", notes="Servidores Principais")
+        c2 = Client(name="Beta Logística", email="suporte@betalog.com", contact_phone="(21) 97777-2222", notes="Filial Rio")
+        c3 = Client(name="Gama Saúde", email="admin@gamasaude.med.br", contact_phone="(31) 96666-3333", notes="Prontuários eletrônicos")
+        db.session.add_all([c1, c2, c3])
+        db.session.commit()
+
+        j1 = Job(client_id=c1.id, job_name="Alfa-DB-Backup", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="23:00")
+        j2 = Job(client_id=c1.id, job_name="Alfa-Arquivos-PDF", frequency_per_day=2, days_of_week="MON,TUE,WED,THU,FRI", expected_time="12:00,18:00")
+        j3 = Job(client_id=c2.id, job_name="Beta-ERP-Daily", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI", expected_time="20:00")
+        j4 = Job(client_id=c3.id, job_name="Gama-Prontuarios-Full", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="02:00")
+        db.session.add_all([j1, j2, j3, j4])
+        db.session.commit()
+
+        now = datetime.now()
+        r1 = JobResult(job_id=j1.id, execution_date=now - timedelta(days=1), bytes_copied=15420000000, status="Success", duration_seconds=1450, log_summary="Backup concluído com sucesso.")
+        r2 = JobResult(job_id=j2.id, execution_date=now - timedelta(days=1), bytes_copied=420000000, status="Success", duration_seconds=120, log_summary="Backup parcial efetuado.")
+        r3 = JobResult(job_id=j3.id, execution_date=now - timedelta(days=1), bytes_copied=8900000000, status="Warning", duration_seconds=2100, log_summary="Alerta: 2 arquivos bloqueados.")
+        r4 = JobResult(job_id=j1.id, execution_date=now, bytes_copied=16200000000, status="Success", duration_seconds=1520, log_summary="Backup diário concluído.")
+        db.session.add_all([r1, r2, r3, r4])
+        db.session.commit()
+
 with app.app_context():
     init_db_with_fallback()
 
-# --- ROTAS DA INTERFACE WEB ---
+# --- ROTAS DE AUTENTICAÇÃO ---
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            if not user.active:
+                error = "Sua conta está desativada. Fale com o administrador."
+            else:
+                login_user(user)
+                return redirect(url_for('index'))
+        else:
+            error = "Usuário ou senha incorretos."
+
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# --- ROTAS DE PÁGINAS DA INTERFACE WEB ---
 
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
 @app.route('/clients')
+@login_required
 def clients_page():
     return render_template('clients.html')
 
 @app.route('/history')
+@login_required
 def history_page():
     return render_template('history.html')
 
 @app.route('/reports')
+@login_required
 def reports_page():
     return render_template('reports.html')
 
+@app.route('/users')
+@login_required
+def users_page():
+    if current_user.group and not current_user.group.can_manage_users:
+        flash("Você não tem permissão para gerenciar usuários.")
+        return redirect(url_for('index'))
+    return render_template('users.html')
+
 @app.route('/webhook-guide')
+@login_required
 def webhook_guide_page():
     return render_template('webhook_guide.html')
 
-# --- ROTAS DA API ---
+# --- ROTAS DE API DA APLICAÇÃO ---
 
 @app.route('/api/dashboard-stats')
+@login_required
 def api_dashboard_stats():
-    """Retorna métricas gerais do sistema e lista de jobs com pendência/destaque."""
     target_date_str = request.args.get('date', date.today().strftime('%Y-%m-%d'))
     try:
         target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
@@ -153,13 +185,24 @@ def api_dashboard_stats():
         target_date = date.today()
 
     try:
-        total_clients = Client.query.count()
-        total_jobs = Job.query.filter_by(active=True).count()
+        allowed_ids = current_user.get_allowed_client_ids()
+
+        client_query = Client.query
+        job_query = Job.query.filter_by(active=True)
+        result_query = JobResult.query.join(Job)
+
+        if allowed_ids is not None:
+            client_query = client_query.filter(Client.id.in_(allowed_ids))
+            job_query = job_query.filter(Job.client_id.in_(allowed_ids))
+            result_query = result_query.filter(Job.client_id.in_(allowed_ids))
+
+        total_clients = client_query.count()
+        total_jobs = job_query.count()
 
         start_dt = datetime.combine(target_date, datetime.min.time())
         end_dt = datetime.combine(target_date, datetime.max.time())
         
-        results_today = JobResult.query.filter(
+        results_today = result_query.filter(
             JobResult.execution_date >= start_dt,
             JobResult.execution_date <= end_dt
         ).all()
@@ -169,8 +212,8 @@ def api_dashboard_stats():
         error_today = sum(1 for r in results_today if r.status in ('Error', 'Fatal'))
         total_bytes_today = sum(r.bytes_copied for r in results_today)
 
-        missed_jobs = check_missed_jobs(target_date)
-        recent_results = JobResult.query.order_by(JobResult.execution_date.desc()).limit(10).all()
+        missed_jobs = check_missed_jobs(target_date, allowed_client_ids=allowed_ids)
+        recent_results = result_query.order_by(JobResult.execution_date.desc()).limit(10).all()
 
         return jsonify({
             'date': target_date.strftime('%Y-%m-%d'),
@@ -189,10 +232,16 @@ def api_dashboard_stats():
         return jsonify({'error': f'Erro ao obter dados do dashboard: {str(e)}'}), 500
 
 @app.route('/api/clients', methods=['GET', 'POST'])
+@login_required
 def api_clients():
+    allowed_ids = current_user.get_allowed_client_ids()
+
     if request.method == 'GET':
         try:
-            clients = Client.query.order_by(Client.name).all()
+            query = Client.query
+            if allowed_ids is not None:
+                query = query.filter(Client.id.in_(allowed_ids))
+            clients = query.order_by(Client.name).all()
             return jsonify([c.to_dict() for c in clients])
         except Exception as e:
             db.session.rollback()
@@ -219,6 +268,7 @@ def api_clients():
             return jsonify({'error': f'Erro ao salvar cliente: {str(e)}'}), 500
 
 @app.route('/api/clients/<int:client_id>', methods=['DELETE'])
+@login_required
 def api_delete_client(client_id):
     try:
         client = Client.query.get_or_404(client_id)
@@ -230,10 +280,16 @@ def api_delete_client(client_id):
         return jsonify({'error': f'Erro ao excluir cliente: {str(e)}'}), 500
 
 @app.route('/api/jobs', methods=['GET', 'POST'])
+@login_required
 def api_jobs():
+    allowed_ids = current_user.get_allowed_client_ids()
+
     if request.method == 'GET':
         try:
-            jobs = Job.query.order_by(Job.job_name).all()
+            query = Job.query.join(Client)
+            if allowed_ids is not None:
+                query = query.filter(Job.client_id.in_(allowed_ids))
+            jobs = query.order_by(Job.job_name).all()
             return jsonify([j.to_dict() for j in jobs])
         except Exception as e:
             db.session.rollback()
@@ -249,10 +305,7 @@ def api_jobs():
                 return jsonify({'error': 'Cliente e Nome do Job são obrigatórios'}), 400
 
             days_list = data.get('days_of_week', ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'])
-            if isinstance(days_list, list):
-                days_str = ','.join(days_list)
-            else:
-                days_str = str(days_list)
+            days_str = ','.join(days_list) if isinstance(days_list, list) else str(days_list)
 
             job = Job(
                 client_id=int(client_id),
@@ -270,6 +323,7 @@ def api_jobs():
             return jsonify({'error': f'Erro ao salvar job: {str(e)}'}), 500
 
 @app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
+@login_required
 def api_delete_job(job_id):
     try:
         job = Job.query.get_or_404(job_id)
@@ -280,39 +334,38 @@ def api_delete_job(job_id):
         db.session.rollback()
         return jsonify({'error': f'Erro ao excluir job: {str(e)}'}), 500
 
-
 @app.route('/api/history')
+@login_required
 def api_history():
+    allowed_ids = current_user.get_allowed_client_ids()
     query = JobResult.query.join(Job).join(Client)
 
-    # Filtro por Cliente
+    if allowed_ids is not None:
+        query = query.filter(Job.client_id.in_(allowed_ids))
+
     client_id = request.args.get('client_id')
     if client_id:
         query = query.filter(Job.client_id == client_id)
 
-    # Filtro por Status
     status = request.args.get('status')
     if status:
         query = query.filter(JobResult.status == status)
 
-    # Filtro por Período de Datas
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
 
     if start_date:
-        dt_start = datetime.strptime(start_date, '%Y-%m-%d')
-        query = query.filter(JobResult.execution_date >= dt_start)
-    
+        query = query.filter(JobResult.execution_date >= datetime.strptime(start_date, '%Y-%m-%d'))
     if end_date:
-        dt_end = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
-        query = query.filter(JobResult.execution_date < dt_end)
+        query = query.filter(JobResult.execution_date < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
 
     results = query.order_by(JobResult.execution_date.desc()).all()
     return jsonify([r.to_dict() for r in results])
 
 @app.route('/api/reports')
+@login_required
 def api_reports():
-    """Gera dados analíticos de relatório por período."""
+    allowed_ids = current_user.get_allowed_client_ids()
     start_date_str = request.args.get('start_date', (date.today() - timedelta(days=30)).strftime('%Y-%m-%d'))
     end_date_str = request.args.get('end_date', date.today().strftime('%Y-%m-%d'))
     client_id = request.args.get('client_id')
@@ -325,6 +378,8 @@ def api_reports():
         JobResult.execution_date < dt_end
     )
 
+    if allowed_ids is not None:
+        query = query.filter(Job.client_id.in_(allowed_ids))
     if client_id:
         query = query.filter(Job.client_id == client_id)
 
@@ -354,8 +409,9 @@ def api_reports():
     })
 
 @app.route('/api/reports/export')
+@login_required
 def api_reports_export_csv():
-    """Exporta o relatório do período selecionado em arquivo CSV."""
+    allowed_ids = current_user.get_allowed_client_ids()
     start_date_str = request.args.get('start_date', (date.today() - timedelta(days=30)).strftime('%Y-%m-%d'))
     end_date_str = request.args.get('end_date', date.today().strftime('%Y-%m-%d'))
     client_id = request.args.get('client_id')
@@ -368,6 +424,8 @@ def api_reports_export_csv():
         JobResult.execution_date < dt_end
     )
 
+    if allowed_ids is not None:
+        query = query.filter(Job.client_id.in_(allowed_ids))
     if client_id:
         query = query.filter(Job.client_id == client_id)
 
@@ -375,8 +433,6 @@ def api_reports_export_csv():
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
-
-    # Cabeçalho do CSV
     writer.writerow(['ID', 'Cliente', 'Nome do Job', 'Data Execução', 'Status', 'Tamanho Copiado', 'Duração', 'Resumo Log'])
 
     for r in results:
@@ -401,28 +457,106 @@ def api_reports_export_csv():
         headers={"Content-disposition": f"attachment; filename={filename}"}
     )
 
-# --- RECEPTOR DE WEBHOOK DO DUPLICATI ---
+# --- APIS DE USUÁRIOS E GRUPOS ---
+
+@app.route('/api/users', methods=['GET', 'POST'])
+@login_required
+def api_users():
+    if request.method == 'GET':
+        users = User.query.order_by(User.username).all()
+        return jsonify([u.to_dict() for u in users])
+
+    if request.method == 'POST':
+        data = request.json or {}
+        username = data.get('username')
+        password = data.get('password')
+        group_id = data.get('group_id')
+
+        if not username or not password or not group_id:
+            return jsonify({'error': 'Usuário, senha e grupo são obrigatórios'}), 400
+
+        if User.query.filter_by(username=username).first():
+            return jsonify({'error': 'Este nome de usuário já está em uso'}), 400
+
+        user = User(
+            username=username,
+            email=data.get('email'),
+            group_id=int(group_id),
+            active=True
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        return jsonify(user.to_dict()), 201
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+def api_delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.username == 'admin':
+        return jsonify({'error': 'O usuário administrador principal não pode ser excluído'}), 400
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/groups', methods=['GET', 'POST'])
+@login_required
+def api_groups():
+    if request.method == 'GET':
+        groups = Group.query.order_by(Group.name).all()
+        return jsonify([g.to_dict() for g in groups])
+
+    if request.method == 'POST':
+        data = request.json or {}
+        name = data.get('name')
+        if not name:
+            return jsonify({'error': 'Nome do grupo é obrigatório'}), 400
+
+        can_view_all = data.get('can_view_all_clients', False)
+        group = Group(
+            name=name,
+            description=data.get('description'),
+            can_manage_users=data.get('can_manage_users', False),
+            can_manage_clients=data.get('can_manage_clients', False),
+            can_view_all_clients=can_view_all
+        )
+
+        if not can_view_all:
+            client_ids = data.get('client_ids', [])
+            if client_ids:
+                clients = Client.query.filter(Client.id.in_(client_ids)).all()
+                group.allowed_clients = clients
+
+        db.session.add(group)
+        db.session.commit()
+        return jsonify(group.to_dict()), 201
+
+@app.route('/api/groups/<int:group_id>', methods=['DELETE'])
+@login_required
+def api_delete_group(group_id):
+    if group_id == 1:
+        return jsonify({'error': 'O grupo Administradores principal não pode ser excluído'}), 400
+    group = Group.query.get_or_404(group_id)
+    db.session.delete(group)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# --- RECEPTOR PÚBLICO DE WEBHOOK DO DUPLICATI ---
 
 @app.route('/api/webhook/duplicati', methods=['POST'])
 def webhook_duplicati():
-    """
-    Endpoint de recepção de notificações do Duplicati (--send-http-url).
-    Suporta payload em JSON ou Form Data gerado pelo Duplicati.
-    """
+    """Endpoint público que recebe relatórios de backups enviadas pelos clientes Duplicati."""
     try:
         data = {}
         if request.is_json:
             data = request.get_json(silent=True) or {}
         else:
-            # Duplicati envia dados via Form ou JSON bruto no body
             try:
                 raw_body = request.get_data(as_text=True)
                 data = json.loads(raw_body)
             except Exception:
                 data = request.form.to_dict()
 
-        # Extrair dados principais do Duplicati
-        # Duplicati envia os parâmetros com prefixo "Extra/" ou "Main/" ou em JSON direto
         backup_name = (
             data.get('Extra', {}).get('BackupName') or 
             data.get('BackupName') or 
@@ -438,16 +572,9 @@ def webhook_duplicati():
             'Success'
         )
 
-        # Mapeamento do resultado do Duplicati para o padrão do sistema
-        status_map = {
-            'Success': 'Success',
-            'Warning': 'Warning',
-            'Error': 'Error',
-            'Fatal': 'Fatal'
-        }
+        status_map = {'Success': 'Success', 'Warning': 'Warning', 'Error': 'Error', 'Fatal': 'Fatal'}
         status = status_map.get(parsed_result, 'Success')
 
-        # Extração do tamanho copiado em bytes
         bytes_copied = 0
         main_data = data.get('Main', {})
         if isinstance(main_data, dict):
@@ -464,12 +591,10 @@ def webhook_duplicati():
         except Exception:
             bytes_copied = 0
 
-        # Duração em segundos
         duration_seconds = 0
         duration_str = main_data.get('Duration') or data.get('Duration')
         if duration_str:
             try:
-                # Duplicati formata duração em "00:15:30.123" ou em segundos soltos
                 if ':' in str(duration_str):
                     parts = str(duration_str).split('.')[0].split(':')
                     if len(parts) == 3:
@@ -479,14 +604,11 @@ def webhook_duplicati():
             except Exception:
                 duration_seconds = 0
 
-        # Localizar ou criar o Job automaticamente
         job = Job.query.filter_by(job_name=backup_name).first()
-        
         if not job:
-            # Tentar associar ao primeiro cliente existente ou criar cliente padrão
             default_client = Client.query.first()
             if not default_client:
-                default_client = Client(name="Cliente Padrão Webhook", notes="Criado automaticamente pelo Webhook")
+                default_client = Client(name="Cliente Padrão Webhook", notes="Criado automaticamente")
                 db.session.add(default_client)
                 db.session.commit()
 
@@ -500,14 +622,13 @@ def webhook_duplicati():
             db.session.add(job)
             db.session.commit()
 
-        # Registrar o Resultado no Histórico
         result = JobResult(
             job_id=job.id,
             execution_date=datetime.now(),
             bytes_copied=bytes_copied,
             status=status,
             duration_seconds=duration_seconds,
-            log_summary=f"Recebido via Webhook do Duplicati. Status original: {parsed_result}",
+            log_summary=f"Recebido via Webhook. Status: {parsed_result}",
             raw_payload=json.dumps(data, ensure_ascii=False)
         )
         db.session.add(result)
@@ -515,15 +636,14 @@ def webhook_duplicati():
 
         return jsonify({
             'success': True,
-            'message': 'Resultado de backup registrado com sucesso!',
+            'message': 'Resultado de backup registrado!',
             'job_id': job.id,
             'result_id': result.id
         }), 200
 
     except Exception as e:
-        app.logger.error(f"Erro ao processar webhook do Duplicati: {e}")
+        app.logger.error(f"Erro no webhook: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    init_db_with_fallback()
     app.run(host='0.0.0.0', port=5000, debug=True)

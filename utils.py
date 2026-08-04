@@ -1,7 +1,6 @@
 from datetime import datetime, date
 from database import Job, JobResult, Client
 
-# Mapeamento dos dias da semana no formato de texto (usado nas configs dos jobs)
 DAY_MAP = {
     0: 'MON',
     1: 'TUE',
@@ -23,9 +22,7 @@ DAY_LABELS_PT = {
 }
 
 def format_bytes(size_bytes):
-    """
-    Formata quantidade de bytes em KB, MB, GB, TB legíveis.
-    """
+    """Formata quantidade de bytes em KB, MB, GB, TB legíveis."""
     if not size_bytes or size_bytes <= 0:
         return "0 B"
     
@@ -38,9 +35,7 @@ def format_bytes(size_bytes):
     return f"{size:.2f} {units[i]}"
 
 def format_duration(seconds):
-    """
-    Formata duração em segundos para HH:MM:SS ou 'Xm Ys'.
-    """
+    """Formata duração em segundos para HH:MM:SS ou 'Xm Ys'."""
     if not seconds or seconds < 0:
         return "0s"
     
@@ -56,11 +51,10 @@ def format_duration(seconds):
     else:
         return f"{secs}s"
 
-def check_missed_jobs(target_date=None):
+def check_missed_jobs(target_date=None, allowed_client_ids=None):
     """
     Verifica a conformidade dos jobs para uma determinada data.
-    Retorna lista de jobs que deveriam ter sido executados mas não foram
-    ou não atingiram a frequência configurada por dia.
+    Suporta filtragem por clientes autorizados (allowed_client_ids).
     """
     if target_date is None:
         target_date = date.today()
@@ -69,15 +63,17 @@ def check_missed_jobs(target_date=None):
 
     day_code = DAY_MAP[target_date.weekday()]
     
-    all_jobs = Job.query.filter_by(active=True).all()
+    query = Job.query.filter_by(active=True)
+    if allowed_client_ids is not None:
+        query = query.filter(Job.client_id.in_(allowed_client_ids))
+
+    all_jobs = query.all()
     missed_jobs = []
 
     for job in all_jobs:
         configured_days = job.get_days_list()
         
-        # Se o job está agendado para o dia da semana da target_date
         if day_code in configured_days:
-            # Buscar execuções registradas na target_date
             start_dt = datetime.combine(target_date, datetime.min.time())
             end_dt = datetime.combine(target_date, datetime.max.time())
             
@@ -90,9 +86,7 @@ def check_missed_jobs(target_date=None):
             executed_count = len(executions_today)
             required_count = job.frequency_per_day
 
-            # Se não executou ou executou menos que a frequência esperada
             if executed_count < required_count:
-                # Verificar o último status se houve alguma execução no dia
                 last_status = executions_today[-1].status if executions_today else "Nenhuma Execução"
                 
                 missed_jobs.append({

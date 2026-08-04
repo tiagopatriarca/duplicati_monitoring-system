@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Gestão de Usuários & Grupos | DuplicatiShield{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Usuários & Grupos de Permissão</h1>
+        <p class="page-subtitle">Crie usuários e defina quais clientes cada grupo tem permissão para visualizar e gerenciar.</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-secondary" onclick="openModal('modal-group')">+ Novo Grupo de Permissão</button>
+        <button class="btn btn-primary" onclick="openModal('modal-user')">+ Criar Novo Usuário</button>
+    </div>
+</div>
+
+<!-- SEÇÃO DE USUÁRIOS -->
+<div class="table-container" style="margin-bottom: 2.5rem;">
+    <div class="table-header-box">
+        <h3 style="font-family: 'Outfit', sans-serif;">Usuários do Sistema</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome de Usuário</th>
+                <th>E-mail</th>
+                <th>Grupo de Permissão</th>
+                <th>Status</th>
+                <th>Data de Criação</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="users-tbody">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando usuários...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- SEÇÃO DE GRUPOS -->
+<div class="table-container">
+    <div class="table-header-box">
+        <h3 style="font-family: 'Outfit', sans-serif;">Grupos & Restrição de Clientes</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome do Grupo</th>
+                <th>Permissão Total</th>
+                <th>Clientes Autorizados</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="groups-tbody">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Carregando grupos...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- MODAL CADASTRAR USUÁRIO -->
+<div id="modal-user" class="modal-backdrop">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">Novo Usuário</h3>
+            <button class="close-btn" onclick="closeModal('modal-user')">&times;</button>
+        </div>
+        <form id="form-user" onsubmit="createUser(event)">
+            <div class="form-group">
+                <label>Nome de Usuário (Login) *</label>
+                <input type="text" id="user-username" class="form-control" required placeholder="Ex: suporte_alfa">
+            </div>
+            <div class="form-group">
+                <label>E-mail *</label>
+                <input type="email" id="user-email" class="form-control" required placeholder="usuario@empresa.com.br">
+            </div>
+            <div class="form-group">
+                <label>Senha de Acesso *</label>
+                <input type="password" id="user-password" class="form-control" required minlength="6" placeholder="Mínimo 6 caracteres">
+            </div>
+            <div class="form-group">
+                <label>Grupo de Permissão *</label>
+                <select id="user-group-id" class="form-control" required></select>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-user')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Usuário</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL CADASTRAR GRUPO -->
+<div id="modal-group" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Novo Grupo de Permissão</h3>
+            <button class="close-btn" onclick="closeModal('modal-group')">&times;</button>
+        </div>
+        <form id="form-group" onsubmit="createGroup(event)">
+            <div class="form-group">
+                <label>Nome do Grupo *</label>
+                <input type="text" id="group-name" class="form-control" required placeholder="Ex: Equipe de Suporte Alfa">
+            </div>
+            <div class="form-group">
+                <label>Descrição</label>
+                <input type="text" id="group-desc" class="form-control" placeholder="Descrição da finalidade do grupo">
+            </div>
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer;">
+                    <input type="checkbox" id="group-view-all" onchange="toggleGroupClientsList(this.checked)">
+                    Acesso TOTAL: Visualizar TODOS os clientes do sistema
+                </label>
+                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Marque apenas para Administradores Globais.</small>
+            </div>
+
+            <!-- Seleção de Clientes Específicos se não tiver Acesso Total -->
+            <div id="group-clients-select-box" class="form-group">
+                <label>Selecione quais clientes este grupo poderá visualizar no painel:</label>
+                <div id="group-clients-checkboxes" style="max-height: 180px; overflow-y: auto; background: rgba(15,23,42,0.6); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px;">
+                    <!-- Preenchido via JS -->
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-group')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Grupo</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadUsersAndGroupsData();
+    });
+
+    async function loadUsersAndGroupsData() {
+        try {
+            const [resUsers, resGroups, resClients] = await Promise.all([
+                fetch('/api/users'),
+                fetch('/api/groups'),
+                fetch('/api/clients')
+            ]);
+            const users = await resUsers.json();
+            const groups = await resGroups.json();
+            const clients = await resClients.json();
+
+            // Preencher Tabela de Usuários
+            const usersTbody = document.getElementById('users-tbody');
+            if (usersTbody) {
+                usersTbody.innerHTML = users.map(u => `
+                    <tr>
+                        <td>#${u.id}</td>
+                        <td><strong>${escapeHtml(u.username)}</strong></td>
+                        <td>${escapeHtml(u.email || '-')}</td>
+                        <td><span class="detail-pill">${escapeHtml(u.group_name)}</span></td>
+                        <td><span class="status-badge ${u.active ? 'Success' : 'Error'}">${u.active ? 'Ativo' : 'Inativo'}</span></td>
+                        <td>${u.created_at}</td>
+                        <td>
+                            ${u.username !== 'admin' ? `<button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem;" onclick="deleteUser(${u.id})">Excluir</button>` : '<small style="color: var(--text-muted);">Protegido</small>'}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Preencher Select de Grupos no Modal de Usuário
+            const groupSelect = document.getElementById('user-group-id');
+            if (groupSelect) {
+                groupSelect.innerHTML = groups.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
+            }
+
+            // Preencher Tabela de Grupos
+            const groupsTbody = document.getElementById('groups-tbody');
+            if (groupsTbody) {
+                groupsTbody.innerHTML = groups.map(g => `
+                    <tr>
+                        <td>#${g.id}</td>
+                        <td><strong>${escapeHtml(g.name)}</strong></td>
+                        <td>${g.can_view_all_clients ? '✅ SIM (Total)' : '🔒 Restrito'}</td>
+                        <td>${g.can_view_all_clients ? '<em>Todos os Clientes</em>' : (g.allowed_client_names.length ? g.allowed_client_names.map(name => `<span class="detail-pill">${escapeHtml(name)}</span>`).join(' ') : '<em>Nenhum cliente vinculado</em>')}</td>
+                        <td>
+                            ${g.id !== 1 ? `<button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem;" onclick="deleteGroup(${g.id})">Excluir</button>` : '<small style="color: var(--text-muted);">Grupo Master</small>'}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Preencher Checkboxes de Clientes para o Modal de Grupo
+            const clientsBox = document.getElementById('group-clients-checkboxes');
+            if (clientsBox) {
+                clientsBox.innerHTML = clients.map(c => `
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                        <input type="checkbox" name="group-clients" value="${c.id}">
+                        ${escapeHtml(c.name)}
+                    </label>
+                `).join('');
+            }
+
+        } catch (err) {
+            console.error('Erro ao carregar dados de usuários/grupos:', err);
+        }
+    }
+
+    function toggleGroupClientsList(isViewAll) {
+        const box = document.getElementById('group-clients-select-box');
+        if (box) {
+            box.style.display = isViewAll ? 'none' : 'block';
+        }
+    }
+
+    async function createUser(event) {
+        event.preventDefault();
+        const username = document.getElementById('user-username').value;
+        const email = document.getElementById('user-email').value;
+        const password = document.getElementById('user-password').value;
+        const group_id = document.getElementById('user-group-id').value;
+
+        const res = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password, group_id })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            closeModal('modal-user');
+            document.getElementById('form-user').reset();
+            loadUsersAndGroupsData();
+        } else {
+            alert(data.error || 'Erro ao criar usuário');
+        }
+    }
+
+    async function createGroup(event) {
+        event.preventDefault();
+        const name = document.getElementById('group-name').value;
+        const description = document.getElementById('group-desc').value;
+        const can_view_all_clients = document.getElementById('group-view-all').checked;
+
+        const clientCheckboxes = document.querySelectorAll('input[name="group-clients"]:checked');
+        const client_ids = Array.from(clientCheckboxes).map(cb => parseInt(cb.value));
+
+        const res = await fetch('/api/groups', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description, can_view_all_clients, client_ids })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            closeModal('modal-group');
+            document.getElementById('form-group').reset();
+            loadUsersAndGroupsData();
+        } else {
+            alert(data.error || 'Erro ao criar grupo');
+        }
+    }
+
+    async function deleteUser(id) {
+        if (confirm('Deseja realmente excluir este usuário?')) {
+            const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+            if (res.ok) loadUsersAndGroupsData();
+        }
+    }
+
+    async function deleteGroup(id) {
+        if (confirm('Deseja realmente excluir este grupo?')) {
+            const res = await fetch(`/api/groups/${id}`, { method: 'DELETE' });
+            if (res.ok) loadUsersAndGroupsData();
+        }
+    }
+</script>
+{% endblock %}

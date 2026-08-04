@@ -23,14 +23,27 @@
                 <span>Duplicati<span style="color: var(--accent-blue);">Shield</span></span>
             </a>
 
-            <nav>
+            <nav style="display: flex; align-items: center; gap: 1.5rem;">
                 <ul class="nav-links">
-                    <li><a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">Painel General</a></li>
+                    <li><a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">Painel Geral</a></li>
                     <li><a href="/clients" class="nav-link {% if request.path == '/clients' %}active{% endif %}">Clientes & Jobs</a></li>
                     <li><a href="/history" class="nav-link {% if request.path == '/history' %}active{% endif %}">Histórico de Execuções</a></li>
                     <li><a href="/reports" class="nav-link {% if request.path == '/reports' %}active{% endif %}">Relatórios</a></li>
+                    {% if current_user.is_authenticated and (not current_user.group or current_user.group.can_manage_users) %}
+                    <li><a href="/users" class="nav-link {% if request.path == '/users' %}active{% endif %}">Usuários & Grupos</a></li>
+                    {% endif %}
                     <li><a href="/webhook-guide" class="nav-link {% if request.path == '/webhook-guide' %}active{% endif %}">Guia Webhook</a></li>
                 </ul>
+
+                {% if current_user.is_authenticated %}
+                <div style="display: flex; align-items: center; gap: 10px; border-left: 1px solid var(--border-color); padding-left: 1rem;">
+                    <div style="display: flex; flex-direction: column; text-align: right;">
+                        <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary);">👤 {{ current_user.username }}</span>
+                        <small style="color: var(--accent-cyan); font-size: 0.75rem;">{{ current_user.group.name if current_user.group else 'Admin' }}</small>
+                    </div>
+                    <a href="/logout" class="btn btn-danger" style="padding: 5px 10px; font-size: 0.8rem;" title="Sair da Conta">Sair</a>
+                </div>
+                {% endif %}
             </nav>
         </div>
     </header>

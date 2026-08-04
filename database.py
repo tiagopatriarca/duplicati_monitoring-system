@@ -1,7 +1,78 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 
 db = SQLAlchemy()
+
+# Tabela de Associação N:N entre Grupos e Clientes autorizados
+group_clients = db.Table('group_clients',
+    db.Column('group_id', db.Integer, db.ForeignKey('groups.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('client_id', db.Integer, db.ForeignKey('clients.id', ondelete='CASCADE'), primary_key=True)
+)
+
+class Group(db.Model):
+    __tablename__ = 'groups'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    can_manage_users = db.Column(db.Boolean, default=False)
+    can_manage_clients = db.Column(db.Boolean, default=False)
+    can_view_all_clients = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Clientes específicos liberados para este grupo
+    allowed_clients = db.relationship('Client', secondary=group_clients, lazy='subquery',
+                                      backref=db.backref('groups', lazy=True))
+    users = db.relationship('User', backref='group', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description or '',
+            'can_manage_users': self.can_manage_users,
+            'can_manage_clients': self.can_manage_clients,
+            'can_view_all_clients': self.can_view_all_clients,
+            'allowed_client_ids': [c.id for c in self.allowed_clients],
+            'allowed_client_names': [c.name for c in self.allowed_clients]
+        }
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    email = db.Column(db.String(150), nullable=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=True)
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def get_allowed_client_ids(self):
+        """Retorna lista de IDs de clientes aos quais o usuário tem acesso."""
+        if not self.group or self.group.can_view_all_clients:
+            return None  # None significa acesso total a todos os clientes
+        return [c.id for c in self.group.allowed_clients]
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email or '',
+            'group_id': self.group_id,
+            'group_name': self.group.name if self.group else 'Sem Grupo',
+            'active': self.active,
+            'can_manage_users': self.group.can_manage_users if self.group else False,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else ''
+        }
 
 class Client(db.Model):
     __tablename__ = 'clients'
