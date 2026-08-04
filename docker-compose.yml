@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Serviço do Banco de Dados MySQL
   db:
@@ -18,9 +16,10 @@ services:
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password_super_secret"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
   # Serviço da Aplicação Web em Python (Flask)
   web:
@@ -37,8 +36,7 @@ services:
       - MYSQL_DB=duplicati_monitor
       - SECRET_KEY=duplicati_super_secret_key_2026
     depends_on:
-      db:
-        condition: service_healthy
+      - db
 
 volumes:
   mysql_data:
