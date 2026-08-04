@@ -333,13 +333,41 @@ async function updateProfile(event) {
     }
 }
 
-// HELPER COPIAR URL DO WEBHOOK
+// HELPER COPIAR URL DO WEBHOOK (Compatível com HTTP e HTTPS)
 function copyWebhookUrl(url) {
-    navigator.clipboard.writeText(url).then(() => {
-        alert('URL de Webhook copiada para a área de transferência!\n\nCole no Duplicati na opção:\n--send-http-url=' + url);
-    }).catch(err => {
-        prompt('Copie a URL abaixo para colocar no Duplicati:', url);
-    });
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(() => {
+            alert('URL de Webhook copiada com sucesso!\n\nCole no Duplicati na opção:\n--send-http-url=' + url);
+        }).catch(() => {
+            fallbackCopyText(url);
+        });
+    } else {
+        fallbackCopyText(url);
+    }
+}
+
+function fallbackCopyText(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            alert('URL de Webhook copiada com sucesso!\n\nCole no Duplicati na opção:\n--send-http-url=' + text);
+        } else {
+            prompt('Copie a URL abaixo para colocar no Duplicati:', text);
+        }
+    } catch (err) {
+        prompt('Copie a URL abaixo para colocar no Duplicati:', text);
+    } finally {
+        document.body.removeChild(textArea);
+    }
 }
 
 // --- HISTORY PAGE ---
