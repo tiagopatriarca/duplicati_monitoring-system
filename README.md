@@ -1,82 +1,53 @@
-# 🛡️ DuplicatiShield - Sistema de Monitoramento de Backups Duplicati (Python + MySQL + Docker)
+# 🛡️ DuplicatiShield - Sistema de Monitoramento de Backups Duplicati (Python + MySQL + Traefik + SSL + Docker)
 
-Sistema completo em Python para recepção de notificações/webhooks do **Duplicati**, armazenamento de histórico em banco de dados **MySQL**, gerenciamento de agendamento/frequência por cliente, alertas dinâmicos para **jobs não executados (destaque para investigação)** e relatórios consolidados por período com exportação CSV e impressão.
+Sistema completo em Python para recepção de notificações/webhooks do **Duplicati**, armazenamento em **MySQL**, gerenciamento de agendamento/frequência por cliente, **autenticação com controle de acesso por grupos (RBAC)**, **URLs únicas de webhook por Job**, e **Proxy Reverso Traefik** para emissão automática de certificados **SSL (HTTPS)** com Let's Encrypt.
 
 ---
 
-## 🚀 Como Executar com Docker & Docker Compose (Recomendado)
+## 🔒 Publicação com Domínio & SSL Gratuito (Traefik + Let's Encrypt)
 
-O projeto já inclui toda a estrutura necessária para subir o banco **MySQL 8.0** e o container da aplicação **Python/Flask** com um único comando.
+O projeto já inclui o **Traefik v2** integrado no `docker-compose.yml` para gerenciar automaticamente:
+- Redirecionamento automático de **HTTP (porta 80)** para **HTTPS (porta 443)**.
+- Geração e renovação automática do certificado de segurança **SSL Let's Encrypt**.
 
-### 1. Clonar ou Acessar a Pasta do Projeto
+### Como configurar seu Domínio:
+
+1. Edite o arquivo `.env` (ou variáveis de ambiente no painel Docker da Hostinger):
+   ```env
+   DOMAIN_NAME=meubackup.com.br
+   LETSENCRYPT_EMAIL=patriarca.info@gmail.com
+   ```
+2. No seu registrador de domínio (Hostinger, Registro.br, Cloudflare, etc.), crie um **Apontamento tipo A**:
+   - **Nome / Host**: `meubackup.com.br` (ou `subdominio.meudominio.com.br`)
+   - **Valor / IP**: `187.77.46.13` (IP do seu servidor VPS Hostinger)
+
+---
+
+## 🚀 Como Executar com Docker Compose
+
 ```bash
+# 1. Acesse a pasta do projeto
 cd C:\Users\DATEN\.gemini\antigravity\scratch\duplicati_monitoring
-```
 
-### 2. Iniciar os Containers Docker
-```bash
+# 2. Suba a aplicação com Traefik, MySQL e Web App
 docker-compose up -d --build
 ```
-> Isso irá:
-> - Subir o container MySQL (`duplicati_mysql_db`) na porta `3306` com inicialização automática do banco e tabelas (`schema.sql`).
-> - Construir a imagem Python (`duplicati_web_app`) e subir o servidor na porta `5000`.
-
-### 3. Acessar a Aplicação
-Abra seu navegador em:
-👉 **[http://localhost:5000](http://localhost:5000)**
 
 ---
 
-## 💻 Como Executar em Modo Local (Sem Docker)
+## 🔑 Credenciais Iniciais de Acesso Padrão
 
-Caso queira executar a aplicação diretamente no seu ambiente Python local:
-
-1. **Instalar dependências**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Iniciar a aplicação**:
-   ```bash
-   python app.py
-   ```
-   *(O sistema detectará se o MySQL está offline e ativará automaticamente um banco de dados SQLite local de fallback para testes sem interrupções).*
+- **Usuário**: `admin`
+- **Senha**: `duplicati`
 
 ---
 
-## 📡 Como Configurar o Duplicati para Enviar Notificações
+## 🎯 Integração com o Duplicati via URL Única
 
-No painel do Duplicati (em cada job de backup ou nas **Opções Avançadas Globais**), adicione a seguinte opção:
+Cada job cadastrado na aba **Clientes & Jobs** gera uma **URL de Webhook Exclusiva** (com o token único do job).
 
+Exemplo de uso no Duplicati:
 ```text
---send-http-url=http://<IP-DO-SEU-SERVIDOR>:5000/api/webhook/duplicati
---send-http-result-output-format=json
+--send-http-url=https://meubackup.com.br/api/webhook/job/job_a8f9c1d2e3f4
 ```
-
-### Testar Envio de Webhooks Imediatamente:
-Você pode executar o script de teste incluído no projeto:
-```bash
-python simulate_webhook.py
-```
-
----
-
-## 📋 Recursos Principais do Sistema
-
-1. **Monitoramento de Histórico**:
-   - Data e hora exata da execução.
-   - Volume de dados transferidos (formatado em KB/MB/GB/TB).
-   - Status da execução (`Success`, `Warning`, `Error`, `Fatal`).
-   - Duração da rotina (formatado em minutos/segundos).
-
-2. **Destaque Visual para Jobs Não Realizados (Investigação)**:
-   - Configuração de frequência diária (ex: 1x, 2x ao dia) e dias da semana ativos (ex: Seg-Sex).
-   - Painel inteligente que detecta a ausência de logs na data agendada e sinaliza o job com um **alerta pulsante vermelho de destaque**.
-
-3. **Gerenciador de Clientes e Jobs**:
-   - Agrupamento de rotinas por cliente corporativo.
-   - Modais para cadastro rápido de novos clientes e regras de backup.
-
-4. **Área de Relatórios por Período**:
-   - Seleção de intervalo de datas (Data Inicial até Data Final).
-   - Estatísticas consolidadas (Total de execuções, taxa de sucesso %, volume total).
-   - Exportação em formato **CSV** e suporte a **Impressão/PDF**.
+> O sistema associará os relatórios do backup com 100% de precisão ao Cliente e Job correto no painel.
