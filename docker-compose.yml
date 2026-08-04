@@ -37,22 +37,14 @@ services:
       - SECRET_KEY=duplicati_super_secret_key_2026
     depends_on:
       - db
-    networks:
-      - default
-      - traefik_global_net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.duplicati.rule=Host(`${DOMAIN_NAME:-localhost}`)"
       - "traefik.http.routers.duplicati.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
       - "traefik.http.routers.duplicati.tls=true"
-      - "traefik.http.routers.duplicati.tls.certresolver=${CERT_RESOLVER:-myresolver}"
+      - "traefik.http.routers.duplicati.tls.certresolver=${CERT_RESOLVER:-letsencrypt}"
       - "traefik.http.services.duplicati.loadbalancer.server.port=5000"
 
 volumes:
   mysql_data:
     driver: local
-
-networks:
-  traefik_global_net:
-    external: true
-    name: ${TRAEFIK_NETWORK:-traefik_net}
