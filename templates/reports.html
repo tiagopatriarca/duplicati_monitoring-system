@@ -3,25 +3,37 @@
 {% block title %}Relatórios por Período | DuplicatiShield{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<!-- CABEÇALHO EXCLUSIVO PARA IMPRESSÃO (A4) -->
+<div class="print-only-header" style="display: none;">
+    <h1 id="print-report-title" style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; color: #000000; font-weight: 700; margin-bottom: 4px;">Relatório de Backup - DuplicatiShield</h1>
+    <p id="print-report-subtitle" style="font-size: 1rem; color: #475569; font-weight: 500;">Período Selecionado</p>
+</div>
+
+<div class="page-header no-print">
     <div>
         <h1 class="page-title">Relatório Geral por Período</h1>
-        <p class="page-subtitle">Emita relatórios consolidados do estado dos backups com resumo executivo e dados exportáveis.</p>
+        <p class="page-subtitle no-print">Acompanhamento consolidado e métricas executivas das rotinas de backup.</p>
     </div>
     <div style="display: flex; gap: 10px;">
-        <button class="btn btn-secondary" onclick="window.print()">🖨️ Imprimir Relatório</button>
+        <button class="btn btn-secondary" onclick="window.print()">🖨️ Imprimir Relatório (A4)</button>
         <button class="btn btn-primary" onclick="exportReportCSV()">📥 Exportar para CSV</button>
     </div>
 </div>
 
-<!-- BARRA DE SELEÇÃO DE PERÍODO -->
-<div class="table-container filter-box" style="padding: 1.2rem; margin-bottom: 1.5rem;">
+<!-- BARRA DE SELEÇÃO DE PERÍODO E CLIENTE -->
+<div class="table-container filter-box no-print" style="padding: 1.2rem; margin-bottom: 1.5rem;">
     <div style="display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end;">
         <div style="flex: 1; min-width: 180px;">
+            <label style="font-size: 0.85rem; color: var(--text-secondary);">Empresa / Cliente</label>
+            <select id="report-client" class="form-control" onchange="loadReportsData()">
+                <option value="">Todas as Empresas</option>
+            </select>
+        </div>
+        <div style="flex: 1; min-width: 160px;">
             <label style="font-size: 0.85rem; color: var(--text-secondary);">Data Inicial *</label>
             <input type="date" id="report-start" class="form-control" onchange="loadReportsData()">
         </div>
-        <div style="flex: 1; min-width: 180px;">
+        <div style="flex: 1; min-width: 160px;">
             <label style="font-size: 0.85rem; color: var(--text-secondary);">Data Final *</label>
             <input type="date" id="report-end" class="form-control" onchange="loadReportsData()">
         </div>
@@ -58,14 +70,14 @@
         <div class="metric-icon icon-yellow">⏱️</div>
         <div class="metric-info">
             <div class="val" id="rep-duration">0s</div>
-            <div class="lbl">Tempo Total Processado</div>
+            <div class="lbl">Tempo Médio por Backup</div>
         </div>
     </div>
 </div>
 
 <!-- TABELA DE RESULTADOS DO RELATÓRIO -->
 <div class="table-container">
-    <div class="table-header-box">
+    <div class="table-header-box no-print">
         <h3 style="font-family: 'Outfit', sans-serif;">Detalhamento das Execuções do Período</h3>
     </div>
     <table class="data-table">

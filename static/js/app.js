@@ -406,7 +406,7 @@ async function loadHistoryData() {
 }
 
 // --- REPORTS PAGE ---
-function initReportsPage() {
+async function initReportsPage() {
     const today = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -417,21 +417,45 @@ function initReportsPage() {
     if (startInput && !startInput.value) startInput.value = formatDateYMD(thirtyDaysAgo);
     if (endInput && !endInput.value) endInput.value = formatDateYMD(today);
 
+    // Carregar opções de empresas no filtro do relatório
+    try {
+        const res = await fetch('/api/clients');
+        const clients = await res.json();
+        const clientSelect = document.getElementById('report-client');
+        if (clientSelect) {
+            clientSelect.innerHTML = `<option value="">Todas as Empresas</option>` +
+                clients.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+        }
+    } catch (e) {
+        console.error('Erro ao carregar lista de clientes no relatório:', e);
+    }
+
     loadReportsData();
 }
 
 async function loadReportsData() {
     const start_date = document.getElementById('report-start').value;
     const end_date = document.getElementById('report-end').value;
+    const client_id = document.getElementById('report-client')?.value || '';
 
     try {
-        const res = await fetch(`/api/reports?start_date=${start_date}&end_date=${end_date}`);
+        const res = await fetch(`/api/reports?start_date=${start_date}&end_date=${end_date}&client_id=${client_id}`);
         const data = await res.json();
 
         document.getElementById('rep-executions').textContent = data.summary.total_executions;
         document.getElementById('rep-success-rate').textContent = `${data.summary.success_rate}%`;
         document.getElementById('rep-bytes').textContent = data.summary.total_bytes_formatted;
-        document.getElementById('rep-duration').textContent = data.summary.total_duration_formatted;
+        document.getElementById('rep-duration').textContent = data.summary.avg_duration_formatted;
+
+        // Atualizar Título e Período Exclusivo para Impressão
+        const printTitle = document.getElementById('print-report-title');
+        const printSub = document.getElementById('print-report-subtitle');
+        if (printTitle) {
+            printTitle.textContent = `Relatório de Backup - ${data.client_name}`;
+        }
+        if (printSub) {
+            printSub.textContent = `Período Selecionado: ${formatDateBR(start_date)} a ${formatDateBR(end_date)}`;
+        }
 
         const tbody = document.getElementById('reports-tbody');
         if (tbody) {
@@ -458,7 +482,15 @@ async function loadReportsData() {
 function exportReportCSV() {
     const start_date = document.getElementById('report-start').value;
     const end_date = document.getElementById('report-end').value;
-    window.location.href = `/api/reports/export?start_date=${start_date}&end_date=${end_date}`;
+    const client_id = document.getElementById('report-client')?.value || '';
+    window.location.href = `/api/reports/export?start_date=${start_date}&end_date=${end_date}&client_id=${client_id}`;
+}
+
+function formatDateBR(ymd) {
+    if (!ymd) return '';
+    const parts = ymd.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return ymd;
 }
 
 // --- UTILS & MODALS ---

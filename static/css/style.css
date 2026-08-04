@@ -571,25 +571,130 @@ body::before {
   margin-top: auto;
 }
 
-/* Estilos de Impressão (Relatório) */
+/* Estilos de Impressão (Otimizado para Papel A4 / PDF) */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 12mm 12mm 12mm;
+  }
+
   body {
     background: #ffffff !important;
-    color: #000000 !important;
+    color: #0f172a !important;
+    font-size: 9.5pt;
   }
-  .header, .page-header .btn, .filter-box, .footer {
+
+  body::before {
     display: none !important;
   }
+
+  /* Ocultar elementos desnecessários na impressão */
+  .header,
+  .no-print,
+  .footer,
+  .page-subtitle,
+  .filter-box,
+  .btn {
+    display: none !important;
+  }
+
+  /* Exibir cabeçalho exclusivo de impressão */
+  .print-only-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 18px;
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 10px;
+  }
+
+  .print-only-header h1 {
+    font-size: 16pt !important;
+    color: #0f172a !important;
+    font-family: 'Outfit', sans-serif !important;
+  }
+
+  .print-only-header p {
+    font-size: 10pt !important;
+    color: #475569 !important;
+    margin-top: 4px;
+  }
+
   .main-content {
     margin: 0 !important;
     padding: 0 !important;
+    max-width: 100% !important;
   }
-  .table-container {
+
+  /* Grade de Métricas na Impressão */
+  .metrics-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .metric-card {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
     box-shadow: none !important;
-    border: 1px solid #ccc !important;
+    padding: 10px !important;
   }
-  .data-table th, .data-table td {
-    color: #000000 !important;
-    border-bottom: 1px solid #ddd !important;
+
+  .metric-icon {
+    display: none !important;
+  }
+
+  .metric-info .val {
+    color: #0f172a !important;
+    font-size: 1.4rem !important;
+  }
+
+  .metric-info .lbl {
+    color: #475569 !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Tabelas na Impressão */
+  .table-container {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  .data-table {
+    font-size: 8.5pt !important;
+  }
+
+  .data-table th {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    border-bottom: 2px solid #94a3b8 !important;
+    padding: 8px 10px !important;
+  }
+
+  .data-table td {
+    color: #1e293b !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    padding: 8px 10px !important;
+  }
+
+  .status-badge {
+    border: 1px solid #94a3b8 !important;
+    padding: 2px 8px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .status-badge.Success {
+    background: #dcfce7 !important;
+    color: #166534 !important;
+  }
+
+  .status-badge.Warning {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+  }
+
+  .status-badge.Error, .status-badge.Fatal {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
   }
 }

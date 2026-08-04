@@ -445,9 +445,17 @@ def api_reports():
     total_seconds = sum(r.duration_seconds for r in results)
 
     success_rate = round((success_count / total_executions * 100), 1) if total_executions > 0 else 0.0
+    avg_seconds = round(total_seconds / total_executions) if total_executions > 0 else 0
+
+    client_name = "Todas as Empresas"
+    if client_id:
+        c = Client.query.get(client_id)
+        if c:
+            client_name = c.name
 
     return jsonify({
         'period': {'start': start_date_str, 'end': end_date_str},
+        'client_name': client_name,
         'summary': {
             'total_executions': total_executions,
             'success_count': success_count,
@@ -455,7 +463,7 @@ def api_reports():
             'error_count': error_count,
             'success_rate': success_rate,
             'total_bytes_formatted': format_bytes(total_bytes),
-            'total_duration_formatted': format_duration(total_seconds)
+            'avg_duration_formatted': format_duration(avg_seconds)
         },
         'records': [r.to_dict() for r in results]
     })
@@ -484,8 +492,10 @@ def api_reports_export_csv():
     results = query.order_by(JobResult.execution_date.desc()).all()
 
     output = io.StringIO()
+    # Escore UTF-8 BOM para garantir suporte a acentos no Excel
+    output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
-    writer.writerow(['ID', 'Cliente', 'Nome do Job', 'Data Execução', 'Status', 'Tamanho Copiado', 'Duração', 'Resumo Log'])
+    writer.writerow(['ID', 'Cliente', 'Nome do Job', 'Data Execucao', 'Status', 'Tamanho Copiado (Bytes)', 'Tamanho Formatado', 'Duracao (Segundos)', 'Duracao Formatada', 'Resumo Log'])
 
     for r in results:
         dict_r = r.to_dict()
@@ -495,7 +505,9 @@ def api_reports_export_csv():
             dict_r['job_name'],
             dict_r['execution_date'],
             dict_r['status'],
+            dict_r['bytes_copied'],
             dict_r['bytes_formatted'],
+            dict_r['duration_seconds'],
             dict_r['duration_formatted'],
             dict_r['log_summary']
         ])
@@ -505,7 +517,7 @@ def api_reports_export_csv():
 
     return Response(
         csv_data,
-        mimetype="text/csv",
+        mimetype="text/csv; charset=utf-8",
         headers={"Content-disposition": f"attachment; filename={filename}"}
     )
 
