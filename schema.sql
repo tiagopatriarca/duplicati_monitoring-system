@@ -78,8 +78,8 @@ INSERT INTO groups (id, name, description, can_manage_users, can_manage_clients,
 (2, 'Técnicos de Suporte', 'Acesso de monitoramento a clientes autorizados', 0, 0, 0)
 ON DUPLICATE KEY UPDATE name=name;
 
--- Inserção do Usuário Padrão Admin (Senha: admin123)
--- Hash pbkdf2:sha256 correspondente a "admin123"
+-- Inserção do Usuário Padrão Admin (Senha: duplicati)
+-- A senha 'duplicati' é redefinida e garantida automaticamente na inicialização via app.py
 INSERT INTO users (id, username, email, password_hash, group_id, active) VALUES
 (1, 'admin', 'admin@duplicatishield.com', 'scrypt:32768:8:1$7W3K34Nf1KqO2s9e$e6a575a7c2b64d1f2a33eb221199aef5f7c320d3f820257e3f890e66d48259df92d4fdfa0ecbfae2adfd529e46a7be74a6aa7ec59b5d2dd7b64082fb8f3f80c6', 1, 1)
 ON DUPLICATE KEY UPDATE username=username;

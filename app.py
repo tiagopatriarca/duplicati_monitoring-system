@@ -79,7 +79,7 @@ def seed_initial_data():
             group_id=admin_group.id,
             active=True
         )
-        admin_user.set_password("admin123")
+        admin_user.set_password("duplicati")
         db.session.add(admin_user)
         db.session.commit()
 
