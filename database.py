@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -22,7 +23,6 @@ class Group(db.Model):
     can_view_all_clients = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Clientes específicos liberados para este grupo
     allowed_clients = db.relationship('Client', secondary=group_clients, lazy='subquery',
                                       backref=db.backref('groups', lazy=True))
     users = db.relationship('User', backref='group', lazy=True)
@@ -57,9 +57,8 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def get_allowed_client_ids(self):
-        """Retorna lista de IDs de clientes aos quais o usuário tem acesso."""
         if not self.group or self.group.can_view_all_clients:
-            return None  # None significa acesso total a todos os clientes
+            return None
         return [c.id for c in self.group.allowed_clients]
 
     def to_dict(self):
@@ -84,7 +83,6 @@ class Client(db.Model):
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relacionamento com Jobs
     jobs = db.relationship('Job', backref='client', lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self):
@@ -98,19 +96,22 @@ class Client(db.Model):
             'job_count': len(self.jobs)
         }
 
+def generate_webhook_token():
+    return f"job_{uuid.uuid4().hex[:12]}"
+
 class Job(db.Model):
     __tablename__ = 'jobs'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id', ondelete='CASCADE'), nullable=False)
     job_name = db.Column(db.String(150), nullable=False)
+    webhook_token = db.Column(db.String(50), unique=True, nullable=False, default=generate_webhook_token)
     frequency_per_day = db.Column(db.Integer, default=1)
     days_of_week = db.Column(db.String(100), default='MON,TUE,WED,THU,FRI,SAT,SUN')
     expected_time = db.Column(db.String(10), default='22:00')
     active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relacionamento com Histórico
     results = db.relationship('JobResult', backref='job', lazy=True, cascade="all, delete-orphan")
 
     def get_days_list(self):
@@ -124,6 +125,7 @@ class Job(db.Model):
             'client_id': self.client_id,
             'client_name': self.client.name if self.client else 'Desconhecido',
             'job_name': self.job_name,
+            'webhook_token': self.webhook_token,
             'frequency_per_day': self.frequency_per_day,
             'days_of_week': self.days_of_week,
             'expected_time': self.expected_time,
@@ -138,7 +140,7 @@ class JobResult(db.Model):
     job_id = db.Column(db.Integer, db.ForeignKey('jobs.id', ondelete='CASCADE'), nullable=False)
     execution_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     bytes_copied = db.Column(db.BigInteger, default=0)
-    status = db.Column(db.String(50), nullable=False)  # Success, Warning, Error, Fatal
+    status = db.Column(db.String(50), nullable=False)
     duration_seconds = db.Column(db.Integer, default=0)
     log_summary = db.Column(db.Text, nullable=True)
     raw_payload = db.Column(db.Text, nullable=True)

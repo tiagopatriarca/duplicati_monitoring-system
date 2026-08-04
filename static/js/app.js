@@ -2,8 +2,10 @@
    SISTEMA DE MONITORAMENTO DE JOBS DUPLICATI - LÓGICA DE FRONTEND JS
    ========================================================================== */
 
+let globalClientsCache = [];
+let globalJobsCache = [];
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicializações com base na página atual
     const path = window.location.pathname;
 
     if (path === '/' || path === '/index.html') {
@@ -26,7 +28,6 @@ async function loadDashboardData(selectedDate = null) {
         const res = await fetch(url);
         const data = await res.json();
 
-        // Atualizar Cards Métricos
         document.getElementById('stat-clients').textContent = data.total_clients;
         document.getElementById('stat-jobs').textContent = data.total_jobs;
         document.getElementById('stat-success').textContent = data.success_today;
@@ -34,7 +35,6 @@ async function loadDashboardData(selectedDate = null) {
         document.getElementById('stat-error').textContent = data.error_today;
         document.getElementById('stat-bytes').textContent = data.total_bytes_today_formatted;
 
-        // Renderizar Banner & Cards de Jobs Pendentes / Não Executados
         const alertSection = document.getElementById('missed-jobs-section');
         const alertGrid = document.getElementById('missed-jobs-grid');
 
@@ -61,7 +61,6 @@ async function loadDashboardData(selectedDate = null) {
             alertGrid.innerHTML = '';
         }
 
-        // Tabela Rápida dos Últimos Resultados
         const tbody = document.getElementById('recent-results-tbody');
         if (tbody) {
             if (data.recent_results.length === 0) {
@@ -79,7 +78,6 @@ async function loadDashboardData(selectedDate = null) {
                 `).join('');
             }
         }
-
     } catch (err) {
         console.error('Erro ao carregar dados do dashboard:', err);
     }
@@ -92,115 +90,181 @@ async function loadClientsPageData() {
             fetch('/api/clients'),
             fetch('/api/jobs')
         ]);
-        const clients = await resClients.json();
-        const jobs = await resJobs.json();
+        globalClientsCache = await resClients.json();
+        globalJobsCache = await resJobs.json();
 
-        // Preencher Tabela de Clientes
+        // Tabela de Clientes
         const clientsTbody = document.getElementById('clients-tbody');
         if (clientsTbody) {
-            if (clients.length === 0) {
+            if (globalClientsCache.length === 0) {
                 clientsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Nenhum cliente cadastrado.</td></tr>`;
             } else {
-                clientsTbody.innerHTML = clients.map(c => `
+                clientsTbody.innerHTML = globalClientsCache.map(c => `
                     <tr>
                         <td><strong>${escapeHtml(c.name)}</strong></td>
                         <td>${escapeHtml(c.email || '-')}</td>
                         <td>${escapeHtml(c.contact_phone || '-')}</td>
                         <td><span class="status-badge Success">${c.job_count} job(s)</span></td>
                         <td>
-                            <button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem;" onclick="deleteClient(${c.id})">Excluir</button>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;" onclick="editClient(${c.id})">✏️ Editar</button>
+                                <button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem;" onclick="deleteClient(${c.id})">🗑️ Excluir</button>
+                            </div>
                         </td>
                     </tr>
                 `).join('');
             }
         }
 
-        // Preencher Select de Clientes no Modal de Job
+        // Preencher Select no Modal de Jobs
         const clientSelect = document.getElementById('job-client-id');
         if (clientSelect) {
-            clientSelect.innerHTML = clients.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+            clientSelect.innerHTML = globalClientsCache.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
         }
 
-        // Preencher Tabela de Jobs
+        // Tabela de Jobs com URL Única de Webhook
         const jobsTbody = document.getElementById('jobs-tbody');
         if (jobsTbody) {
-            if (jobs.length === 0) {
+            if (globalJobsCache.length === 0) {
                 jobsTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">Nenhum job agendado.</td></tr>`;
             } else {
-                jobsTbody.innerHTML = jobs.map(j => `
+                const currentOrigin = window.location.origin;
+                jobsTbody.innerHTML = globalJobsCache.map(j => {
+                    const webhookUrl = `${currentOrigin}/api/webhook/job/${j.webhook_token}`;
+                    return `
                     <tr>
                         <td><strong>${escapeHtml(j.client_name)}</strong></td>
                         <td>${escapeHtml(j.job_name)}</td>
                         <td>${j.frequency_per_day}x ao dia</td>
                         <td>${j.days_of_week}</td>
-                        <td>${j.expected_time || '-'}</td>
                         <td>
-                            <button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem;" onclick="deleteJob(${j.id})">Excluir</button>
+                            <div style="display: flex; align-items: center; gap: 6px; background: rgba(15,23,42,0.6); padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                                <code style="font-size: 0.75rem; color: #38bdf8; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${webhookUrl}</code>
+                                <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.75rem;" onclick="copyWebhookUrl('${webhookUrl}')">📋 Copiar</button>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;" onclick="editJob(${j.id})">✏️ Editar</button>
+                                <button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem;" onclick="deleteJob(${j.id})">🗑️ Excluir</button>
+                            </div>
                         </td>
                     </tr>
-                `).join('');
+                `;
+                }).join('');
             }
         }
-
     } catch (err) {
         console.error('Erro ao carregar clientes/jobs:', err);
     }
 }
 
-async function createClient(event) {
+// Modal & Ações de Cliente
+function openNewClientModal() {
+    document.getElementById('modal-client-title').textContent = 'Novo Cliente';
+    document.getElementById('client-id-edit').value = '';
+    document.getElementById('form-client').reset();
+    openModal('modal-client');
+}
+
+function editClient(id) {
+    const client = globalClientsCache.find(c => c.id === id);
+    if (!client) return;
+
+    document.getElementById('modal-client-title').textContent = 'Editar Cliente';
+    document.getElementById('client-id-edit').value = client.id;
+    document.getElementById('client-name').value = client.name;
+    document.getElementById('client-email').value = client.email;
+    document.getElementById('client-phone').value = client.contact_phone;
+    document.getElementById('client-notes').value = client.notes;
+
+    openModal('modal-client');
+}
+
+async function saveClient(event) {
     event.preventDefault();
+    const id = document.getElementById('client-id-edit').value;
     const name = document.getElementById('client-name').value;
     const email = document.getElementById('client-email').value;
     const contact_phone = document.getElementById('client-phone').value;
     const notes = document.getElementById('client-notes').value;
 
+    const url = id ? `/api/clients/${id}` : '/api/clients';
+    const method = id ? 'PUT' : 'POST';
+
     try {
-        const res = await fetch('/api/clients', {
-            method: 'POST',
+        const res = await fetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, email, contact_phone, notes })
         });
-
         const data = await res.json();
 
         if (res.ok) {
             closeModal('modal-client');
-            document.getElementById('form-client').reset();
             loadClientsPageData();
         } else {
-            alert(data.error || 'Erro ao cadastrar cliente');
+            alert(data.error || 'Erro ao salvar cliente');
         }
     } catch (err) {
         alert('Erro ao se comunicar com o servidor: ' + err.message);
     }
 }
 
-async function createJob(event) {
+// Modal & Ações de Job
+function openNewJobModal() {
+    document.getElementById('modal-job-title').textContent = 'Configurar Novo Job';
+    document.getElementById('job-id-edit').value = '';
+    document.getElementById('form-job').reset();
+    openModal('modal-job');
+}
+
+function editJob(id) {
+    const job = globalJobsCache.find(j => j.id === id);
+    if (!job) return;
+
+    document.getElementById('modal-job-title').textContent = 'Editar Job';
+    document.getElementById('job-id-edit').value = job.id;
+    document.getElementById('job-client-id').value = job.client_id;
+    document.getElementById('job-name').value = job.job_name;
+    document.getElementById('job-freq').value = job.frequency_per_day;
+    document.getElementById('job-time').value = job.expected_time || '22:00';
+
+    const configuredDays = (job.days_of_week || '').split(',');
+    document.querySelectorAll('input[name="days"]').forEach(cb => {
+        cb.checked = configuredDays.includes(cb.value);
+    });
+
+    openModal('modal-job');
+}
+
+async function saveJob(event) {
     event.preventDefault();
+    const id = document.getElementById('job-id-edit').value;
     const client_id = document.getElementById('job-client-id').value;
     const job_name = document.getElementById('job-name').value;
     const frequency_per_day = document.getElementById('job-freq').value;
     const expected_time = document.getElementById('job-time').value;
 
-    // Obter dias selecionados
     const checkboxes = document.querySelectorAll('input[name="days"]:checked');
     const days_of_week = Array.from(checkboxes).map(cb => cb.value);
 
+    const url = id ? `/api/jobs/${id}` : '/api/jobs';
+    const method = id ? 'PUT' : 'POST';
+
     try {
-        const res = await fetch('/api/jobs', {
-            method: 'POST',
+        const res = await fetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ client_id, job_name, frequency_per_day, expected_time, days_of_week })
         });
-
         const data = await res.json();
 
         if (res.ok) {
             closeModal('modal-job');
-            document.getElementById('form-job').reset();
             loadClientsPageData();
         } else {
-            alert(data.error || 'Erro ao cadastrar job');
+            alert(data.error || 'Erro ao salvar job');
         }
     } catch (err) {
         alert('Erro ao se comunicar com o servidor: ' + err.message);
@@ -239,6 +303,45 @@ async function deleteJob(id) {
     }
 }
 
+// PERFIL DO USUÁRIO
+function openProfileModal() {
+    openModal('modal-profile');
+}
+
+async function updateProfile(event) {
+    event.preventDefault();
+    const email = document.getElementById('profile-email').value;
+    const password = document.getElementById('profile-password').value;
+
+    try {
+        const res = await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            alert('Perfil atualizado com sucesso!');
+            closeModal('modal-profile');
+            document.getElementById('profile-password').value = '';
+        } else {
+            alert(data.error || 'Erro ao atualizar perfil');
+        }
+    } catch (err) {
+        alert('Erro de comunicação: ' + err.message);
+    }
+}
+
+// HELPER COPIAR URL DO WEBHOOK
+function copyWebhookUrl(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        alert('URL de Webhook copiada para a área de transferência!\n\nCole no Duplicati na opção:\n--send-http-url=' + url);
+    }).catch(err => {
+        prompt('Copie a URL abaixo para colocar no Duplicati:', url);
+    });
+}
+
 // --- HISTORY PAGE ---
 async function loadHistoryData() {
     try {
@@ -254,7 +357,7 @@ async function loadHistoryData() {
         const tbody = document.getElementById('history-tbody');
         if (tbody) {
             if (data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">Nenhum histórico encontrado para os filtros selecionados.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">Nenhum histórico encontrado.</td></tr>`;
             } else {
                 tbody.innerHTML = data.map(r => `
                     <tr>
@@ -276,7 +379,6 @@ async function loadHistoryData() {
 
 // --- REPORTS PAGE ---
 function initReportsPage() {
-    // Definir padrão para os últimos 30 dias
     const today = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -306,7 +408,7 @@ async function loadReportsData() {
         const tbody = document.getElementById('reports-tbody');
         if (tbody) {
             if (data.records.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">Nenhum registro encontrado no período selecionado.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">Nenhum registro no período.</td></tr>`;
             } else {
                 tbody.innerHTML = data.records.map(r => `
                     <tr>

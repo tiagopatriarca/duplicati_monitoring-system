@@ -6,41 +6,38 @@
 <div class="page-header">
     <div>
         <h1 class="page-title">Guia de Integração com o Duplicati</h1>
-        <p class="page-subtitle">Como configurar o Duplicati para enviar os relatórios de resultados de jobs para este sistema.</p>
+        <p class="page-subtitle">Como configurar os relatórios automáticos no Duplicati usando **URLs Únicas por Job**.</p>
     </div>
 </div>
 
 <div class="table-container" style="padding: 2rem;">
-    <h2 style="font-family: 'Outfit', sans-serif; margin-bottom: 1rem; color: var(--accent-blue);">1. Endereço da URL do Webhook</h2>
+    <h2 style="font-family: 'Outfit', sans-serif; margin-bottom: 1rem; color: var(--accent-blue);">🎯 1. Método Recomendado: URL Única por Job (100% Preciso)</h2>
     <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-        Seu servidor esta pronto para receber notificações no seguinte endpoint HTTP POST:
+        Cada job cadastrado na página <a href="/clients" style="color: var(--accent-cyan); text-decoration: underline;">Clientes & Jobs</a> possui um **token exclusivo**. Usar a URL única garante que o backup seja associado com 100% de precisão ao Cliente e Job correto, sem risco de aparecer como "Backup Desconhecido".
     </p>
-    <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid var(--accent-blue); padding: 1rem 1.5rem; border-radius: var(--radius-sm); font-family: monospace; font-size: 1.1rem; color: #38bdf8; margin-bottom: 2rem;">
-        http://&lt;IP-DO-SEU-SERVIDOR&gt;:5000/api/webhook/duplicati
+
+    <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid var(--accent-blue); padding: 1.2rem 1.5rem; border-radius: var(--radius-sm); margin-bottom: 2rem;">
+        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px;">Exemplo de URL Única gerada para um Job:</div>
+        <code style="font-size: 1.05rem; color: #38bdf8;">http://&lt;IP-DO-SEU-SERVIDOR&gt;:5000/api/webhook/job/job_a8f9c1d2e3f4</code>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">
+            💡 Acesse a aba <strong>Clientes & Jobs</strong> e clique no botão <strong>📋 Copiar</strong> ao lado do job para obter o link exato.
+        </p>
     </div>
 
-    <h2 style="font-family: 'Outfit', sans-serif; margin-bottom: 1rem; color: var(--accent-blue);">2. Passos para Configuração no Duplicati GUI</h2>
+    <h2 style="font-family: 'Outfit', sans-serif; margin-bottom: 1rem; color: var(--accent-blue);">⚙️ 2. Passos para Configurar no Duplicati</h2>
     <ol style="color: var(--text-primary); margin-left: 1.5rem; line-height: 2; margin-bottom: 2rem;">
-        <li>Abra o painel web do seu **Duplicati**.</li>
-        <li>Edite o Job de Backup desejado ou acesse <strong>Configurações Globais</strong>.</li>
-        <li>Navegue até a Etapa 5 (ou <strong>Opções Avançadas</strong>).</li>
-        <li>Adicione a seguinte opção avançada:
+        <li>Abra o painel web do seu **Duplicati** na máquina cliente.</li>
+        <li>Edite o Job de Backup desejado.</li>
+        <li>Navegue até a **Etapa 5 (Opções Avançadas)**.</li>
+        <li>Adicione a opção avançada:
             <br>
-            <code style="background: rgba(255,255,255,0.1); padding: 3px 8px; border-radius: 4px; color: #f472b6;">--send-http-url=http://&lt;IP-DO-SEU-SERVIDOR&gt;:5000/api/webhook/duplicati</code>
+            <code style="background: rgba(255,255,255,0.1); padding: 3px 8px; border-radius: 4px; color: #f472b6;">--send-http-url=http://&lt;IP-DO-SEU-SERVIDOR&gt;:5000/api/webhook/job/SEU_TOKEN_DO_JOB</code>
         </li>
-        <li>(Opcional) Para enviar o relatório detalhado em formato JSON, adicione também:
+        <li>(Opcional) Adicione também o formato em JSON:
             <br>
             <code style="background: rgba(255,255,255,0.1); padding: 3px 8px; border-radius: 4px; color: #f472b6;">--send-http-result-output-format=json</code>
         </li>
-        <li>Salve a configuração do Job. Pronto! Ao finalizar cada execução, o Duplicati enviará os resultados automaticamente para este sistema.</li>
+        <li>Salve a configuração do Job. Pronto! As notificações serão associadas automaticamente ao cliente correto.</li>
     </ol>
-
-    <h2 style="font-family: 'Outfit', sans-serif; margin-bottom: 1rem; color: var(--accent-blue);">3. Testar Conexão Instantaneamente</h2>
-    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-        Você pode rodar o script de simulação em Python incluído no projeto para testar o envio de notificações sem precisar aguardar um backup real:
-    </p>
-    <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border-color); padding: 1rem 1.5rem; border-radius: var(--radius-sm); font-family: monospace; color: #a7f3d0;">
-        python simulate_webhook.py
-    </div>
 </div>
 {% endblock %}

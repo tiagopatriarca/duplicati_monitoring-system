@@ -6,11 +6,11 @@
 <div class="page-header">
     <div>
         <h1 class="page-title">Gestão de Clientes e Agendamentos</h1>
-        <p class="page-subtitle">Cadastre clientes e configure os jobs com a frequência diária e dias da semana.</p>
+        <p class="page-subtitle">Cadastre clientes, edite configurações e obtenha a **URL Única de Webhook** para cada Job do Duplicati.</p>
     </div>
     <div style="display: flex; gap: 10px;">
-        <button class="btn btn-secondary" onclick="openModal('modal-client')">+ Novo Cliente</button>
-        <button class="btn btn-primary" onclick="openModal('modal-job')">+ Configurar Novo Job</button>
+        <button class="btn btn-secondary" onclick="openNewClientModal()">+ Novo Cliente</button>
+        <button class="btn btn-primary" onclick="openNewJobModal()">+ Configurar Novo Job</button>
     </div>
 </div>
 
@@ -38,16 +38,16 @@
 <!-- SEÇÃO DE JOBS AGENDADOS -->
 <div class="table-container">
     <div class="table-header-box">
-        <h3 style="font-family: 'Outfit', sans-serif;">Jobs e Frequências de Backup</h3>
+        <h3 style="font-family: 'Outfit', sans-serif;">Jobs e URLs Únicas de Webhook</h3>
     </div>
     <table class="data-table">
         <thead>
             <tr>
                 <th>Cliente</th>
-                <th>Nome do Job (Duplicati)</th>
+                <th>Nome do Job</th>
                 <th>Frequência Diária</th>
                 <th>Dias da Semana</th>
-                <th>Horário Esperado</th>
+                <th>URL Única de Webhook (Duplicati)</th>
                 <th>Ações</th>
             </tr>
         </thead>
@@ -57,25 +57,26 @@
     </table>
 </div>
 
-<!-- MODAL CADASTRAR CLIENTE -->
+<!-- MODAL CADASTRAR/EDITAR CLIENTE -->
 <div id="modal-client" class="modal-backdrop">
     <div class="modal-card">
         <div class="modal-header">
-            <h3 class="modal-title">Novo Cliente</h3>
+            <h3 class="modal-title" id="modal-client-title">Novo Cliente</h3>
             <button class="close-btn" onclick="closeModal('modal-client')">&times;</button>
         </div>
-        <form id="form-client" onsubmit="createClient(event)">
+        <form id="form-client" onsubmit="saveClient(event)">
+            <input type="hidden" id="client-id-edit">
             <div class="form-group">
                 <label>Nome do Cliente / Empresa *</label>
-                <input type="text" id="client-name" class="form-control" required placeholder="Ex: Alfa Tecnologia">
+                <input type="text" id="client-name" class="form-control" required placeholder="Ex: Nutrir com Saúde">
             </div>
             <div class="form-group">
                 <label>E-mail de Contato</label>
-                <input type="email" id="client-email" class="form-control" placeholder="suporte@alfa.com.br">
+                <input type="email" id="client-email" class="form-control" placeholder="financeiro@nutrircomsaude.com.br">
             </div>
             <div class="form-group">
                 <label>Telefone / WhatsApp</label>
-                <input type="text" id="client-phone" class="form-control" placeholder="(11) 99999-8888">
+                <input type="text" id="client-phone" class="form-control" placeholder="(71) 99333-6318">
             </div>
             <div class="form-group">
                 <label>Observações</label>
@@ -83,28 +84,28 @@
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('modal-client')">Cancelar</button>
-                <button type="submit" class="btn btn-primary">Salvar Cliente</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-client">Salvar Cliente</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- MODAL CADASTRAR JOB -->
+<!-- MODAL CADASTRAR/EDITAR JOB -->
 <div id="modal-job" class="modal-backdrop">
     <div class="modal-card">
         <div class="modal-header">
-            <h3 class="modal-title">Configurar Novo Job</h3>
+            <h3 class="modal-title" id="modal-job-title">Configurar Novo Job</h3>
             <button class="close-btn" onclick="closeModal('modal-job')">&times;</button>
         </div>
-        <form id="form-job" onsubmit="createJob(event)">
+        <form id="form-job" onsubmit="saveJob(event)">
+            <input type="hidden" id="job-id-edit">
             <div class="form-group">
                 <label>Selecione o Cliente *</label>
                 <select id="job-client-id" class="form-control" required></select>
             </div>
             <div class="form-group">
-                <label>Nome Exato do Job no Duplicati *</label>
-                <input type="text" id="job-name" class="form-control" required placeholder="Ex: Backup-Servidor-DB">
-                <small style="color: var(--text-muted);">Importante: Deve corresponder ao parâmetro BackupName no Duplicati.</small>
+                <label>Nome do Job no Duplicati *</label>
+                <input type="text" id="job-name" class="form-control" required placeholder="Ex: BKP-Arquivos-rede">
             </div>
             <div class="form-group">
                 <label>Frequência Esperada por Dia *</label>
@@ -128,7 +129,7 @@
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('modal-job')">Cancelar</button>
-                <button type="submit" class="btn btn-primary">Salvar Job</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-job">Salvar Job</button>
             </div>
         </form>
     </div>

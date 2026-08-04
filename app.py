@@ -1,13 +1,15 @@
 import json
 import csv
 import io
+import uuid
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, flash
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from config import Config
-from database import db, Client, Job, JobResult, User, Group, group_clients
+from database import db, Client, Job, JobResult, User, Group, group_clients, generate_webhook_token
 from utils import check_missed_jobs, format_bytes, format_duration
 
 app = Flask(__name__)
@@ -16,7 +18,6 @@ app.config.from_object(Config)
 # Inicializar Banco de Dados
 db.init_app(app)
 
-# Configurar Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -26,10 +27,9 @@ login_manager.login_message = "Por favor, faça login para acessar esta página.
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- INICIALIZAÇÃO DO BANCO DE DADOS E SEED ---
+# --- INICIALIZAÇÃO DO BANCO E MIGRAÇÕES AUTOMÁTICAS ---
 
 def init_db_with_fallback():
-    """Tenta conectar ao MySQL. Se falhar, alterna para SQLite local."""
     try:
         db.create_all()
         print("Conectado ao Banco de Dados MySQL com sucesso!")
@@ -41,34 +41,40 @@ def init_db_with_fallback():
             db.create_all()
 
     try:
+        # Migração automática: Adicionar coluna webhook_token caso não exista no DB
+        with db.engine.connect() as conn:
+            try:
+                conn.execute(text("SELECT webhook_token FROM jobs LIMIT 1"))
+            except Exception:
+                print("Adicionando coluna webhook_token na tabela jobs...")
+                try:
+                    conn.execute(text("ALTER TABLE jobs ADD COLUMN webhook_token VARCHAR(50)"))
+                    conn.commit()
+                except Exception as ex:
+                    print(f"Aviso na alteração da tabela jobs: {ex}")
+
+        # Garantir que todos os jobs existentes tenham um webhook_token
+        jobs_without_token = Job.query.filter((Job.webhook_token == None) | (Job.webhook_token == '')).all()
+        for j in jobs_without_token:
+            j.webhook_token = generate_webhook_token()
+        if jobs_without_token:
+            db.session.commit()
+
         seed_initial_data()
     except Exception as e:
         print(f"Aviso na inicialização de dados: {e}")
 
 def seed_initial_data():
-    """Garante a existência do Grupo Admin e Usuário Admin inicial se o banco for novo."""
     admin_group = Group.query.filter_by(name="Administradores").first()
     if not admin_group:
         admin_group = Group(
             name="Administradores",
-            description="Acesso total a todos os clientes e gerenciamento de usuários",
+            description="Acesso total a todos os clientes",
             can_manage_users=True,
             can_manage_clients=True,
             can_view_all_clients=True
         )
         db.session.add(admin_group)
-        db.session.commit()
-
-    support_group = Group.query.filter_by(name="Técnicos de Suporte").first()
-    if not support_group:
-        support_group = Group(
-            name="Técnicos de Suporte",
-            description="Acesso de monitoramento a clientes específicos",
-            can_manage_users=False,
-            can_manage_clients=False,
-            can_view_all_clients=False
-        )
-        db.session.add(support_group)
         db.session.commit()
 
     admin_user = User.query.filter_by(username="admin").first()
@@ -83,32 +89,10 @@ def seed_initial_data():
         db.session.add(admin_user)
         db.session.commit()
 
-    if Client.query.count() == 0:
-        c1 = Client(name="Empresa Alfa TI", email="ti@alfa.com.br", contact_phone="(11) 98888-1111", notes="Servidores Principais")
-        c2 = Client(name="Beta Logística", email="suporte@betalog.com", contact_phone="(21) 97777-2222", notes="Filial Rio")
-        c3 = Client(name="Gama Saúde", email="admin@gamasaude.med.br", contact_phone="(31) 96666-3333", notes="Prontuários eletrônicos")
-        db.session.add_all([c1, c2, c3])
-        db.session.commit()
-
-        j1 = Job(client_id=c1.id, job_name="Alfa-DB-Backup", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="23:00")
-        j2 = Job(client_id=c1.id, job_name="Alfa-Arquivos-PDF", frequency_per_day=2, days_of_week="MON,TUE,WED,THU,FRI", expected_time="12:00,18:00")
-        j3 = Job(client_id=c2.id, job_name="Beta-ERP-Daily", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI", expected_time="20:00")
-        j4 = Job(client_id=c3.id, job_name="Gama-Prontuarios-Full", frequency_per_day=1, days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN", expected_time="02:00")
-        db.session.add_all([j1, j2, j3, j4])
-        db.session.commit()
-
-        now = datetime.now()
-        r1 = JobResult(job_id=j1.id, execution_date=now - timedelta(days=1), bytes_copied=15420000000, status="Success", duration_seconds=1450, log_summary="Backup concluído com sucesso.")
-        r2 = JobResult(job_id=j2.id, execution_date=now - timedelta(days=1), bytes_copied=420000000, status="Success", duration_seconds=120, log_summary="Backup parcial efetuado.")
-        r3 = JobResult(job_id=j3.id, execution_date=now - timedelta(days=1), bytes_copied=8900000000, status="Warning", duration_seconds=2100, log_summary="Alerta: 2 arquivos bloqueados.")
-        r4 = JobResult(job_id=j1.id, execution_date=now, bytes_copied=16200000000, status="Success", duration_seconds=1520, log_summary="Backup diário concluído.")
-        db.session.add_all([r1, r2, r3, r4])
-        db.session.commit()
-
 with app.app_context():
     init_db_with_fallback()
 
-# --- ROTAS DE AUTENTICAÇÃO ---
+# --- ROTAS DE AUTENTICAÇÃO E PERFIL ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -138,7 +122,29 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- ROTAS DE PÁGINAS DA INTERFACE WEB ---
+@app.route('/api/profile', methods=['PUT'])
+@login_required
+def api_update_profile():
+    try:
+        data = request.json or {}
+        email = data.get('email')
+        password = data.get('password')
+
+        if email:
+            current_user.email = email
+        
+        if password and len(password.strip()) > 0:
+            if len(password.strip()) < 6:
+                return jsonify({'error': 'A nova senha deve ter no mínimo 6 caracteres'}), 400
+            current_user.set_password(password.strip())
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Perfil atualizado com sucesso!', 'user': current_user.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Erro ao atualizar perfil: {str(e)}'}), 500
+
+# --- ROTAS DE PÁGINAS ---
 
 @app.route('/')
 @login_required
@@ -267,17 +273,37 @@ def api_clients():
             db.session.rollback()
             return jsonify({'error': f'Erro ao salvar cliente: {str(e)}'}), 500
 
-@app.route('/api/clients/<int:client_id>', methods=['DELETE'])
+@app.route('/api/clients/<int:client_id>', methods=['PUT', 'DELETE'])
 @login_required
-def api_delete_client(client_id):
-    try:
-        client = Client.query.get_or_404(client_id)
-        db.session.delete(client)
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'Cliente removido com sucesso'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Erro ao excluir cliente: {str(e)}'}), 500
+def api_client_detail(client_id):
+    client = Client.query.get_or_404(client_id)
+
+    if request.method == 'PUT':
+        try:
+            data = request.json or {}
+            name = data.get('name')
+            if not name:
+                return jsonify({'error': 'Nome do cliente é obrigatório'}), 400
+
+            client.name = name
+            client.email = data.get('email')
+            client.contact_phone = data.get('contact_phone')
+            client.notes = data.get('notes')
+
+            db.session.commit()
+            return jsonify(client.to_dict())
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao editar cliente: {str(e)}'}), 500
+
+    if request.method == 'DELETE':
+        try:
+            db.session.delete(client)
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Cliente removido com sucesso'})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao excluir cliente: {str(e)}'}), 500
 
 @app.route('/api/jobs', methods=['GET', 'POST'])
 @login_required
@@ -310,6 +336,7 @@ def api_jobs():
             job = Job(
                 client_id=int(client_id),
                 job_name=job_name,
+                webhook_token=generate_webhook_token(),
                 frequency_per_day=int(data.get('frequency_per_day', 1)),
                 days_of_week=days_str,
                 expected_time=data.get('expected_time', '22:00'),
@@ -322,17 +349,42 @@ def api_jobs():
             db.session.rollback()
             return jsonify({'error': f'Erro ao salvar job: {str(e)}'}), 500
 
-@app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
+@app.route('/api/jobs/<int:job_id>', methods=['PUT', 'DELETE'])
 @login_required
-def api_delete_job(job_id):
-    try:
-        job = Job.query.get_or_404(job_id)
-        db.session.delete(job)
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'Job removido com sucesso'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Erro ao excluir job: {str(e)}'}), 500
+def api_job_detail(job_id):
+    job = Job.query.get_or_404(job_id)
+
+    if request.method == 'PUT':
+        try:
+            data = request.json or {}
+            job_name = data.get('job_name')
+            client_id = data.get('client_id')
+            if not job_name or not client_id:
+                return jsonify({'error': 'Nome do job e cliente são obrigatórios'}), 400
+
+            days_list = data.get('days_of_week', ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'])
+            days_str = ','.join(days_list) if isinstance(days_list, list) else str(days_list)
+
+            job.client_id = int(client_id)
+            job.job_name = job_name
+            job.frequency_per_day = int(data.get('frequency_per_day', 1))
+            job.days_of_week = days_str
+            job.expected_time = data.get('expected_time', '22:00')
+
+            db.session.commit()
+            return jsonify(job.to_dict())
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao editar job: {str(e)}'}), 500
+
+    if request.method == 'DELETE':
+        try:
+            db.session.delete(job)
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Job removido com sucesso'})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao excluir job: {str(e)}'}), 500
 
 @app.route('/api/history')
 @login_required
@@ -541,11 +593,15 @@ def api_delete_group(group_id):
     db.session.commit()
     return jsonify({'success': True})
 
-# --- RECEPTOR PÚBLICO DE WEBHOOK DO DUPLICATI ---
+# --- RECEPTORES PÚBLICOS DE WEBHOOK DO DUPLICATI ---
 
-@app.route('/api/webhook/duplicati', methods=['POST'])
-def webhook_duplicati():
-    """Endpoint público que recebe relatórios de backups enviadas pelos clientes Duplicati."""
+@app.route('/api/webhook/job/<webhook_token>', methods=['POST', 'GET'])
+@app.route('/api/webhook/duplicati', methods=['POST', 'GET'])
+def webhook_duplicati(webhook_token=None):
+    """
+    Receptor universal e por Token Único de Webhook.
+    Se o token for informado na URL (/api/webhook/job/job_xyz), associa diretamente ao Job correto!
+    """
     try:
         data = {}
         if request.is_json:
@@ -557,12 +613,20 @@ def webhook_duplicati():
             except Exception:
                 data = request.form.to_dict()
 
+        # Tentar obter o token da URL ou query string
+        if not webhook_token:
+            webhook_token = request.args.get('token')
+
+        target_job = None
+        if webhook_token:
+            target_job = Job.query.filter_by(webhook_token=webhook_token).first()
+
         backup_name = (
             data.get('Extra', {}).get('BackupName') or 
             data.get('BackupName') or 
             data.get('backup_name') or 
             data.get('OperationName') or 
-            'Backup Desconhecido'
+            (target_job.job_name if target_job else 'Backup Desconhecido')
         )
 
         parsed_result = (
@@ -604,31 +668,35 @@ def webhook_duplicati():
             except Exception:
                 duration_seconds = 0
 
-        job = Job.query.filter_by(job_name=backup_name).first()
-        if not job:
+        # Se não encontrou pelo token, tenta pelo nome do backup
+        if not target_job:
+            target_job = Job.query.filter_by(job_name=backup_name).first()
+
+        if not target_job:
             default_client = Client.query.first()
             if not default_client:
                 default_client = Client(name="Cliente Padrão Webhook", notes="Criado automaticamente")
                 db.session.add(default_client)
                 db.session.commit()
 
-            job = Job(
+            target_job = Job(
                 client_id=default_client.id,
                 job_name=backup_name,
+                webhook_token=generate_webhook_token(),
                 frequency_per_day=1,
                 days_of_week="MON,TUE,WED,THU,FRI,SAT,SUN",
                 expected_time="22:00"
             )
-            db.session.add(job)
+            db.session.add(target_job)
             db.session.commit()
 
         result = JobResult(
-            job_id=job.id,
+            job_id=target_job.id,
             execution_date=datetime.now(),
             bytes_copied=bytes_copied,
             status=status,
             duration_seconds=duration_seconds,
-            log_summary=f"Recebido via Webhook. Status: {parsed_result}",
+            log_summary=f"Recebido via Webhook (Job: {target_job.job_name}). Status: {parsed_result}",
             raw_payload=json.dumps(data, ensure_ascii=False)
         )
         db.session.add(result)
@@ -636,8 +704,8 @@ def webhook_duplicati():
 
         return jsonify({
             'success': True,
-            'message': 'Resultado de backup registrado!',
-            'job_id': job.id,
+            'message': f"Resultado do backup '{target_job.job_name}' registrado com sucesso!",
+            'job_id': target_job.id,
             'result_id': result.id
         }), 200
 

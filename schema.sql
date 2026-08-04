@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     client_id INT NOT NULL,
     job_name VARCHAR(150) NOT NULL,
+    webhook_token VARCHAR(50) UNIQUE NOT NULL,
     frequency_per_day INT DEFAULT 1,
     days_of_week VARCHAR(100) DEFAULT 'MON,TUE,WED,THU,FRI,SAT,SUN',
     expected_time VARCHAR(10) DEFAULT '22:00',
