@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables & secrets (NÃO ENVIAR O .ENV COM SEGREDOS)
+.env
+
+# Banco de dados local SQLite de fallback
+*.db
+*.sqlite3
+duplicati_local.db
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+
+# OS Files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico de Execuções | DuplicatiShield{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Histórico de Execuções</h1>
+        <p class="page-subtitle">Consulte o registro completo das notificações recebidas do Duplicati.</p>
+    </div>
+</div>
+
+<!-- FILTROS DE PESQUISA -->
+<div class="table-container" style="padding: 1.2rem; margin-bottom: 1.5rem;">
+    <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+        <div style="flex: 1; min-width: 180px;">
+            <label style="font-size: 0.85rem; color: var(--text-secondary);">Status</label>
+            <select id="filter-status" class="form-control" onchange="loadHistoryData()">
+                <option value="">Todos os Status</option>
+                <option value="Success">Success (Sucesso)</option>
+                <option value="Warning">Warning (Alerta)</option>
+                <option value="Error">Error / Fatal (Erro)</option>
+            </select>
+        </div>
+        <div style="flex: 1; min-width: 160px;">
+            <label style="font-size: 0.85rem; color: var(--text-secondary);">Data Inicial</label>
+            <input type="date" id="filter-start" class="form-control" onchange="loadHistoryData()">
+        </div>
+        <div style="flex: 1; min-width: 160px;">
+            <label style="font-size: 0.85rem; color: var(--text-secondary);">Data Final</label>
+            <input type="date" id="filter-end" class="form-control" onchange="loadHistoryData()">
+        </div>
+        <div>
+            <button class="btn btn-secondary" onclick="loadHistoryData()">Filtrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- TABELA COMPLETA -->
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Nome do Job</th>
+                <th>Data e Hora</th>
+                <th>Status</th>
+                <th>Tamanho Copiado</th>
+                <th>Duração</th>
+            </tr>
+        </thead>
+        <tbody id="history-tbody">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando histórico...</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

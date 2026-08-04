@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Clientes & Jobs | DuplicatiShield{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Gestão de Clientes e Agendamentos</h1>
+        <p class="page-subtitle">Cadastre clientes e configure os jobs com a frequência diária e dias da semana.</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-secondary" onclick="openModal('modal-client')">+ Novo Cliente</button>
+        <button class="btn btn-primary" onclick="openModal('modal-job')">+ Configurar Novo Job</button>
+    </div>
+</div>
+
+<!-- SEÇÃO DE CLIENTES -->
+<div class="table-container" style="margin-bottom: 2.5rem;">
+    <div class="table-header-box">
+        <h3 style="font-family: 'Outfit', sans-serif;">Clientes Cadastrados</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>E-mail</th>
+                <th>Telefone</th>
+                <th>Jobs Agendados</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="clients-tbody">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Carregando clientes...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- SEÇÃO DE JOBS AGENDADOS -->
+<div class="table-container">
+    <div class="table-header-box">
+        <h3 style="font-family: 'Outfit', sans-serif;">Jobs e Frequências de Backup</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Nome do Job (Duplicati)</th>
+                <th>Frequência Diária</th>
+                <th>Dias da Semana</th>
+                <th>Horário Esperado</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="jobs-tbody">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Carregando jobs...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- MODAL CADASTRAR CLIENTE -->
+<div id="modal-client" class="modal-backdrop">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">Novo Cliente</h3>
+            <button class="close-btn" onclick="closeModal('modal-client')">&times;</button>
+        </div>
+        <form id="form-client" onsubmit="createClient(event)">
+            <div class="form-group">
+                <label>Nome do Cliente / Empresa *</label>
+                <input type="text" id="client-name" class="form-control" required placeholder="Ex: Alfa Tecnologia">
+            </div>
+            <div class="form-group">
+                <label>E-mail de Contato</label>
+                <input type="email" id="client-email" class="form-control" placeholder="suporte@alfa.com.br">
+            </div>
+            <div class="form-group">
+                <label>Telefone / WhatsApp</label>
+                <input type="text" id="client-phone" class="form-control" placeholder="(11) 99999-8888">
+            </div>
+            <div class="form-group">
+                <label>Observações</label>
+                <textarea id="client-notes" class="form-control" rows="2" placeholder="Detalhes dos servidores ou infraestrutura"></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-client')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Cliente</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL CADASTRAR JOB -->
+<div id="modal-job" class="modal-backdrop">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">Configurar Novo Job</h3>
+            <button class="close-btn" onclick="closeModal('modal-job')">&times;</button>
+        </div>
+        <form id="form-job" onsubmit="createJob(event)">
+            <div class="form-group">
+                <label>Selecione o Cliente *</label>
+                <select id="job-client-id" class="form-control" required></select>
+            </div>
+            <div class="form-group">
+                <label>Nome Exato do Job no Duplicati *</label>
+                <input type="text" id="job-name" class="form-control" required placeholder="Ex: Backup-Servidor-DB">
+                <small style="color: var(--text-muted);">Importante: Deve corresponder ao parâmetro BackupName no Duplicati.</small>
+            </div>
+            <div class="form-group">
+                <label>Frequência Esperada por Dia *</label>
+                <input type="number" id="job-freq" class="form-control" min="1" max="24" value="1" required>
+            </div>
+            <div class="form-group">
+                <label>Horário Aproximado (Ex: 22:00)</label>
+                <input type="text" id="job-time" class="form-control" value="22:00">
+            </div>
+            <div class="form-group">
+                <label>Dias da Semana em que o Backup roda:</label>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px;">
+                    <label><input type="checkbox" name="days" value="MON" checked> Seg</label>
+                    <label><input type="checkbox" name="days" value="TUE" checked> Ter</label>
+                    <label><input type="checkbox" name="days" value="WED" checked> Quar</label>
+                    <label><input type="checkbox" name="days" value="THU" checked> Qui</label>
+                    <label><input type="checkbox" name="days" value="FRI" checked> Sex</label>
+                    <label><input type="checkbox" name="days" value="SAT" checked> Sáb</label>
+                    <label><input type="checkbox" name="days" value="SUN" checked> Dom</label>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-job')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Job</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

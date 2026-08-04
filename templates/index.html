@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | DuplicatiShield{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Visão Geral dos Backups</h1>
+        <p class="page-subtitle">Acompanhamento em tempo real das rotinas de backup e status dos clientes.</p>
+    </div>
+    <div>
+        <input type="date" id="dashboard-date" class="form-control" style="width: auto; display: inline-block;" onchange="loadDashboardData(this.value)">
+    </div>
+</div>
+
+<!-- CARDS DE MÉTRICAS -->
+<div class="metrics-grid">
+    <div class="metric-card">
+        <div class="metric-icon icon-blue">🏢</div>
+        <div class="metric-info">
+            <div class="val" id="stat-clients">0</div>
+            <div class="lbl">Clientes Cadastrados</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon icon-purple">⚙️</div>
+        <div class="metric-info">
+            <div class="val" id="stat-jobs">0</div>
+            <div class="lbl">Jobs Ativos</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon icon-green">✅</div>
+        <div class="metric-info">
+            <div class="val" id="stat-success">0</div>
+            <div class="lbl">Sucessos Hoje</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon icon-yellow">⚠️</div>
+        <div class="metric-info">
+            <div class="val" id="stat-warning">0</div>
+            <div class="lbl">Alertas Hoje</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon icon-red">❌</div>
+        <div class="metric-info">
+            <div class="val" id="stat-error">0</div>
+            <div class="lbl">Erros Hoje</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon icon-blue">💾</div>
+        <div class="metric-info">
+            <div class="val" id="stat-bytes">0 B</div>
+            <div class="lbl">Volume Copiado Hoje</div>
+        </div>
+    </div>
+</div>
+
+<!-- BANNER DE DESTAQUE PARA INVESTIGAÇÃO (JOBS NÃO REALIZADOS) -->
+<section id="missed-jobs-section" class="alert-section" style="display: none;">
+    <div class="alert-banner">
+        <div class="alert-header-title">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>ATENÇÃO: (<span id="missed-alert-count">0</span>) Jobs Agendados NÃO Foram Realizados Conforme Configuração</span>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">
+            Os jobs destacados abaixo estavam agendados para hoje mas não registraram a frequência esperada de backups. **Necessitam de investigação imediata.**
+        </p>
+
+        <div id="missed-jobs-grid" class="alert-grid">
+            <!-- Inserido dinamicamente via JS -->
+        </div>
+    </div>
+</section>
+
+<!-- TABELA DE ÚLTIMAS EXECUÇÕES REGISTRADAS -->
+<div class="table-container">
+    <div class="table-header-box">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem;">Últimos Backups Recebidos</h3>
+        <a href="/history" class="btn btn-secondary" style="font-size: 0.85rem; padding: 6px 14px;">Ver Histórico Completo &rarr;</a>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Nome do Job</th>
+                <th>Data e Hora</th>
+                <th>Status</th>
+                <th>Tamanho Copiado</th>
+                <th>Duração</th>
+            </tr>
+        </thead>
+        <tbody id="recent-results-tbody">
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted);">Carregando dados...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('dashboard-date').value = new Date().toISOString().split('T')[0];
+    });
+</script>
+{% endblock %}

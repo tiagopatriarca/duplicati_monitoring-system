@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Relatórios por Período | DuplicatiShield{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Relatório Geral por Período</h1>
+        <p class="page-subtitle">Emita relatórios consolidados do estado dos backups com resumo executivo e dados exportáveis.</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-secondary" onclick="window.print()">🖨️ Imprimir Relatório</button>
+        <button class="btn btn-primary" onclick="exportReportCSV()">📥 Exportar para CSV</button>
+    </div>
+</div>
+
+<!-- BARRA DE SELEÇÃO DE PERÍODO -->
+<div class="table-container filter-box" style="padding: 1.2rem; margin-bottom: 1.5rem;">
+    <div style="display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end;">
+        <div style="flex: 1; min-width: 180px;">
+            <label style="font-size: 0.85rem; color: var(--text-secondary);">Data Inicial *</label>
+            <input type="date" id="report-start" class="form-control" onchange="loadReportsData()">
+        </div>
+        <div style="flex: 1; min-width: 180px;">
+            <label style="font-size: 0.85rem; color: var(--text-secondary);">Data Final *</label>
+            <input type="date" id="report-end" class="form-control" onchange="loadReportsData()">
+        </div>
+        <div>
+            <button class="btn btn-primary" onclick="loadReportsData()">Gerar Relatório</button>
+        </div>
+    </div>
+</div>
+
+<!-- RESUMO EXECUTIVO DO PERÍODO -->
+<div class="metrics-grid" style="margin-bottom: 2rem;">
+    <div class="metric-card">
+        <div class="metric-icon icon-blue">📊</div>
+        <div class="metric-info">
+            <div class="val" id="rep-executions">0</div>
+            <div class="lbl">Total de Execuções no Período</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon icon-green">🎯</div>
+        <div class="metric-info">
+            <div class="val" id="rep-success-rate">0%</div>
+            <div class="lbl">Taxa de Sucesso</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon icon-purple">💾</div>
+        <div class="metric-info">
+            <div class="val" id="rep-bytes">0 B</div>
+            <div class="lbl">Total de Dados Copiados</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon icon-yellow">⏱️</div>
+        <div class="metric-info">
+            <div class="val" id="rep-duration">0s</div>
+            <div class="lbl">Tempo Total Processado</div>
+        </div>
+    </div>
+</div>
+
+<!-- TABELA DE RESULTADOS DO RELATÓRIO -->
+<div class="table-container">
+    <div class="table-header-box">
+        <h3 style="font-family: 'Outfit', sans-serif;">Detalhamento das Execuções do Período</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Nome do Job</th>
+                <th>Data e Hora</th>
+                <th>Status</th>
+                <th>Tamanho Copiado</th>
+                <th>Duração</th>
+            </tr>
+        </thead>
+        <tbody id="reports-tbody">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Selecione o período e clique em Gerar Relatório.</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
