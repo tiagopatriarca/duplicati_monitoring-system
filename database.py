@@ -146,6 +146,53 @@ class JobResult(db.Model):
     raw_payload = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def extract_detailed_stats(self):
+        """Extrai contagem e tamanho formatado de arquivos novos, modificados e examinados."""
+        if not self.raw_payload:
+            return {
+                'added_count': 0, 'added_size': '0 B',
+                'modified_count': 0, 'modified_size': '0 B',
+                'examined_count': 0, 'examined_size': '0 B'
+            }
+        try:
+            data = json.loads(self.raw_payload)
+            if not isinstance(data, dict):
+                data = {}
+        except Exception:
+            data = {}
+
+        dict_sources = [
+            data,
+            data.get('Data', {}) if isinstance(data.get('Data'), dict) else {},
+            data.get('Main', {}) if isinstance(data.get('Main'), dict) else {},
+            data.get('Result', {}) if isinstance(data.get('Result'), dict) else {}
+        ]
+
+        added_count = 0
+        added_size = 0
+        mod_count = 0
+        mod_size = 0
+        exam_count = 0
+        exam_size = 0
+
+        for src in dict_sources:
+            if not added_count: added_count = src.get('AddedFiles', 0) or src.get('FilesAdded', 0) or src.get('Added', 0)
+            if not added_size: added_size = src.get('SizeOfAddedFiles', 0)
+            if not mod_count: mod_count = src.get('ModifiedFiles', 0) or src.get('FilesModified', 0) or src.get('Modified', 0)
+            if not mod_size: mod_size = src.get('SizeOfModifiedFiles', 0)
+            if not exam_count: exam_count = src.get('ExaminedFiles', 0) or src.get('FilesExamined', 0) or src.get('Evaluated', 0)
+            if not exam_size: exam_size = src.get('SizeOfExaminedFiles', 0)
+
+        from utils import format_bytes
+        return {
+            'added_count': int(added_count or 0),
+            'added_size': format_bytes(added_size),
+            'modified_count': int(mod_count or 0),
+            'modified_size': format_bytes(mod_size),
+            'examined_count': int(exam_count or 0),
+            'examined_size': format_bytes(exam_size)
+        }
+
     def to_dict(self):
         from utils import format_bytes, format_duration
         return {
@@ -160,5 +207,6 @@ class JobResult(db.Model):
             'status': self.status,
             'duration_seconds': self.duration_seconds,
             'duration_formatted': format_duration(self.duration_seconds),
-            'log_summary': self.log_summary or ''
+            'log_summary': self.log_summary or '',
+            'details': self.extract_detailed_stats()
         }

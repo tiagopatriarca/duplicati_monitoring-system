@@ -58,24 +58,49 @@ async function loadDashboardData(selectedDate = null) {
             `).join('');
         } else {
             alertSection.style.display = 'none';
-            alertGrid.innerHTML = '';
-        }
-
+           // Tabela Rápida dos Últimos Resultados (Com detalhamento expandível)
         const tbody = document.getElementById('recent-results-tbody');
         if (tbody) {
             if (data.recent_results.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">Nenhum resultado registrado até o momento.</td></tr>`;
             } else {
-                tbody.innerHTML = data.recent_results.map(r => `
-                    <tr>
-                        <td><strong>${escapeHtml(r.client_name)}</strong></td>
-                        <td>${escapeHtml(r.job_name)}</td>
-                        <td>${r.execution_date}</td>
-                        <td><span class="status-badge ${r.status}">${r.status}</span></td>
-                        <td>${r.bytes_formatted}</td>
-                        <td>${r.duration_formatted}</td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = data.recent_results.map(r => {
+                    const d = r.details || {};
+                    return `
+                        <tr class="expandable-row" onclick="toggleHistoryDetail(${r.id})" style="cursor: pointer;" title="Clique para ver arquivos novos e modificados">
+                            <td>
+                                <span id="arrow-icon-${r.id}" style="display: inline-block; transition: transform 0.2s ease; margin-right: 6px; font-size: 0.75rem; color: var(--accent-blue);">▼</span>
+                                <strong>${escapeHtml(r.client_name)}</strong>
+                            </td>
+                            <td>${escapeHtml(r.job_name)}</td>
+                            <td>${r.execution_date}</td>
+                            <td><span class="status-badge ${r.status}">${r.status}</span></td>
+                            <td>${r.bytes_formatted}</td>
+                            <td>${r.duration_formatted}</td>
+                        </tr>
+                        <tr id="detail-row-${r.id}" class="detail-row-expanded" style="display: none; background: rgba(15, 23, 42, 0.75);">
+                            <td colspan="6" style="padding: 1rem 1.5rem;">
+                                <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; font-size: 0.9rem;">
+                                    <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); padding: 8px 14px; border-radius: var(--radius-sm);">
+                                        <span style="color: var(--accent-cyan); font-weight: 600;">✨ Arquivos Novos:</span>
+                                        <strong style="color: #ffffff; margin-left: 6px;">${d.added_count || 0} arquivos</strong>
+                                        <span style="color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px;">(${d.added_size || '0 B'})</span>
+                                    </div>
+                                    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 8px 14px; border-radius: var(--radius-sm);">
+                                        <span style="color: var(--status-warning); font-weight: 600;">✏️ Arquivos Modificados:</span>
+                                        <strong style="color: #ffffff; margin-left: 6px;">${d.modified_count || 0} arquivos</strong>
+                                        <span style="color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px;">(${d.modified_size || '0 B'})</span>
+                                    </div>
+                                    <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); padding: 8px 14px; border-radius: var(--radius-sm);">
+                                        <span style="color: var(--text-secondary); font-weight: 500;">🔍 Total Examinado:</span>
+                                        <strong style="color: #ffffff; margin-left: 6px;">${d.examined_count || 0} arquivos</strong>
+                                        <span style="color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px;">(${d.examined_size || '0 B'})</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
             }
         }
     } catch (err) {
@@ -385,23 +410,65 @@ async function loadHistoryData() {
         const tbody = document.getElementById('history-tbody');
         if (tbody) {
             if (data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">Nenhum histórico encontrado.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">Nenhum histórico encontrado para os filtros selecionados.</td></tr>`;
             } else {
-                tbody.innerHTML = data.map(r => `
-                    <tr>
-                        <td>#${r.id}</td>
-                        <td><strong>${escapeHtml(r.client_name)}</strong></td>
-                        <td>${escapeHtml(r.job_name)}</td>
-                        <td>${r.execution_date}</td>
-                        <td><span class="status-badge ${r.status}">${r.status}</span></td>
-                        <td>${r.bytes_formatted}</td>
-                        <td>${r.duration_formatted}</td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = data.map(r => {
+                    const d = r.details || {};
+                    return `
+                        <tr class="expandable-row" onclick="toggleHistoryDetail(${r.id})" style="cursor: pointer;" title="Clique para expandir arquivos novos e modificados">
+                            <td>
+                                <span id="arrow-icon-${r.id}" style="display: inline-block; transition: transform 0.2s ease; margin-right: 6px; font-size: 0.75rem; color: var(--accent-blue);">▼</span>
+                                #${r.id}
+                            </td>
+                            <td><strong>${escapeHtml(r.client_name)}</strong></td>
+                            <td>${escapeHtml(r.job_name)}</td>
+                            <td>${r.execution_date}</td>
+                            <td><span class="status-badge ${r.status}">${r.status}</span></td>
+                            <td>${r.bytes_formatted}</td>
+                            <td>${r.duration_formatted}</td>
+                        </tr>
+                        <tr id="detail-row-${r.id}" class="detail-row-expanded" style="display: none; background: rgba(15, 23, 42, 0.75);">
+                            <td colspan="7" style="padding: 1.2rem 1.5rem; border-bottom: 2px solid var(--accent-blue);">
+                                <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; font-size: 0.9rem;">
+                                    <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.35); padding: 10px 16px; border-radius: var(--radius-sm);">
+                                        <span style="color: var(--accent-cyan); font-weight: 600;">✨ Arquivos Novos:</span>
+                                        <strong style="color: #ffffff; margin-left: 6px; font-size: 1rem;">${d.added_count || 0} arquivos</strong>
+                                        <span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 6px;">(${d.added_size || '0 B'})</span>
+                                    </div>
+                                    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35); padding: 10px 16px; border-radius: var(--radius-sm);">
+                                        <span style="color: var(--status-warning); font-weight: 600;">✏️ Arquivos Modificados:</span>
+                                        <strong style="color: #ffffff; margin-left: 6px; font-size: 1rem;">${d.modified_count || 0} arquivos</strong>
+                                        <span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 6px;">(${d.modified_size || '0 B'})</span>
+                                    </div>
+                                    <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: var(--radius-sm);">
+                                        <span style="color: var(--text-secondary); font-weight: 500;">🔍 Total Examinado:</span>
+                                        <strong style="color: #ffffff; margin-left: 6px; font-size: 1rem;">${d.examined_count || 0} arquivos</strong>
+                                        <span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 6px;">(${d.examined_size || '0 B'})</span>
+                                    </div>
+                                </div>
+                                ${r.log_summary ? `<div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-secondary); border-top: 1px dashed var(--border-color); padding-top: 8px;"><strong>Resumo do Log:</strong> ${escapeHtml(r.log_summary)}</div>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
             }
         }
     } catch (err) {
         console.error('Erro ao carregar histórico:', err);
+    }
+}
+
+function toggleHistoryDetail(id) {
+    const detailRow = document.getElementById(`detail-row-${id}`);
+    const arrowIcon = document.getElementById(`arrow-icon-${id}`);
+    if (!detailRow) return;
+
+    if (detailRow.style.display === 'none' || !detailRow.style.display) {
+        detailRow.style.display = 'table-row';
+        if (arrowIcon) arrowIcon.style.transform = 'rotate(180deg)';
+    } else {
+        detailRow.style.display = 'none';
+        if (arrowIcon) arrowIcon.style.transform = 'rotate(0deg)';
     }
 }
 
