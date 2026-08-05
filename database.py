@@ -150,50 +150,93 @@ class JobResult(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def extract_detailed_stats(self):
-        """Extrai contagem e tamanho formatado de arquivos novos, modificados e examinados."""
+        """Extrai contagem e tamanho formatado de arquivos novos, modificados e erros/avisos de forma recursiva."""
         if not self.raw_payload:
             return {
                 'added_count': 0, 'added_size': '0 B',
                 'modified_count': 0, 'modified_size': '0 B',
-                'examined_count': 0, 'examined_size': '0 B'
+                'examined_count': 0, 'examined_size': '0 B',
+                'opened_count': 0, 'opened_size': '0 B',
+                'errors_list': [], 'warnings_list': [], 'messages_list': []
             }
+        
         try:
             data = json.loads(self.raw_payload)
+            if isinstance(data, str):
+                data = json.loads(data)
             if not isinstance(data, dict):
                 data = {}
         except Exception:
             data = {}
 
-        dict_sources = [
-            data,
-            data.get('Data', {}) if isinstance(data.get('Data'), dict) else {},
-            data.get('Main', {}) if isinstance(data.get('Main'), dict) else {},
-            data.get('Result', {}) if isinstance(data.get('Result'), dict) else {}
-        ]
+        def find_key(obj, keys):
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k.lower() in [key.lower() for key in keys]:
+                        if v is not None and str(v).strip() != '':
+                            return v
+                    if isinstance(v, (dict, list)):
+                        res = find_key(v, keys)
+                        if res is not None:
+                            return res
+            elif isinstance(obj, list):
+                for item in obj:
+                    res = find_key(item, keys)
+                    if res is not None:
+                        return res
+            return None
 
-        added_count = 0
-        added_size = 0
-        mod_count = 0
-        mod_size = 0
-        exam_count = 0
-        exam_size = 0
+        def collect_list(obj, keys):
+            results = []
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k.lower() in [key.lower() for key in keys]:
+                        if isinstance(v, list):
+                            results.extend([str(x) for x in v if x])
+                        elif isinstance(v, str) and v.strip():
+                            results.append(v.strip())
+                    elif isinstance(v, (dict, list)):
+                        results.extend(collect_list(v, keys))
+            elif isinstance(obj, list):
+                for item in obj:
+                    results.extend(collect_list(item, keys))
+            return results
 
-        for src in dict_sources:
-            if not added_count: added_count = src.get('AddedFiles', 0) or src.get('FilesAdded', 0) or src.get('Added', 0)
-            if not added_size: added_size = src.get('SizeOfAddedFiles', 0)
-            if not mod_count: mod_count = src.get('ModifiedFiles', 0) or src.get('FilesModified', 0) or src.get('Modified', 0)
-            if not mod_size: mod_size = src.get('SizeOfModifiedFiles', 0)
-            if not exam_count: exam_count = src.get('ExaminedFiles', 0) or src.get('FilesExamined', 0) or src.get('Evaluated', 0)
-            if not exam_size: exam_size = src.get('SizeOfExaminedFiles', 0)
+        added_count = find_key(data, ['AddedFiles', 'FilesAdded', 'AddedFilesCount', 'Added']) or 0
+        added_size = find_key(data, ['SizeOfAddedFiles', 'AddedFilesSize', 'SizeAdded']) or 0
+
+        mod_count = find_key(data, ['ModifiedFiles', 'FilesModified', 'ModifiedFilesCount', 'Modified']) or 0
+        mod_size = find_key(data, ['SizeOfModifiedFiles', 'ModifiedFilesSize', 'SizeModified']) or 0
+
+        exam_count = find_key(data, ['ExaminedFiles', 'FilesExamined', 'Evaluated', 'ExaminedFilesCount']) or 0
+        exam_size = find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'SizeExamined']) or 0
+
+        opened_count = find_key(data, ['OpenedFiles', 'FilesOpened', 'Opened']) or 0
+        opened_size = find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize']) or 0
+
+        errors_list = collect_list(data, ['Errors', 'ErrorMessages', 'ErrorsList', 'FatalErrors'])
+        warnings_list = collect_list(data, ['Warnings', 'WarningMessages', 'WarningsList'])
+        messages_list = collect_list(data, ['Messages', 'LogLines', 'LogMessages'])
+
+        def parse_int(val):
+            try:
+                return int(float(str(val)))
+            except Exception:
+                return 0
 
         from utils import format_bytes
         return {
-            'added_count': int(added_count or 0),
-            'added_size': format_bytes(added_size),
-            'modified_count': int(mod_count or 0),
-            'modified_size': format_bytes(mod_size),
-            'examined_count': int(exam_count or 0),
-            'examined_size': format_bytes(exam_size)
+            'added_count': parse_int(added_count),
+            'added_size': format_bytes(parse_int(added_size)),
+            'modified_count': parse_int(mod_count),
+            'modified_size': format_bytes(parse_int(mod_size)),
+            'examined_count': parse_int(exam_count),
+            'examined_size': format_bytes(parse_int(exam_size)),
+            'opened_count': parse_int(opened_count),
+            'opened_size': format_bytes(parse_int(opened_size)),
+            'errors_list': errors_list,
+            'warnings_list': warnings_list,
+            'messages_list': messages_list
         }
 
     def to_dict(self):

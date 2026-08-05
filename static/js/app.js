@@ -78,7 +78,7 @@ async function loadDashboardData(selectedDate = null) {
             alertSection.style.display = 'none';
         }
 
-        // Tabela Rápida dos Últimos Resultados
+        // Tabela Rápida dos Últimos Resultados (Com detalhamento expandível)
         const tbody = document.getElementById('recent-results-tbody');
         if (tbody) {
             const recent = Array.isArray(data.recent_results) ? data.recent_results : [];
@@ -87,8 +87,11 @@ async function loadDashboardData(selectedDate = null) {
             } else {
                 tbody.innerHTML = recent.map(r => {
                     const d = r.details || {};
+                    const isErr = r.status === 'Error' || r.status === 'Fatal' || (d.errors_list && d.errors_list.length > 0);
+                    const isWarn = r.status === 'Warning' || (d.warnings_list && d.warnings_list.length > 0);
+
                     return `
-                        <tr class="expandable-row" onclick="toggleHistoryDetail(${r.id})" style="cursor: pointer;" title="Clique para ver arquivos novos e modificados">
+                        <tr class="expandable-row" onclick="toggleHistoryDetail(${r.id})" style="cursor: pointer;" title="Clique para ver arquivos novos, modificados e alertas">
                             <td>
                                 <span id="arrow-icon-${r.id}" style="display: inline-block; transition: transform 0.2s ease; margin-right: 6px; font-size: 0.75rem; color: var(--accent-blue);">▼</span>
                                 <strong>${escapeHtml(r.client_name)}</strong>
@@ -99,15 +102,15 @@ async function loadDashboardData(selectedDate = null) {
                             <td>${r.bytes_formatted}</td>
                             <td>${r.duration_formatted}</td>
                         </tr>
-                        <tr id="detail-row-${r.id}" class="detail-row-expanded" style="display: none; background: rgba(15, 23, 42, 0.75);">
-                            <td colspan="6" style="padding: 1rem 1.5rem;">
-                                <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; font-size: 0.9rem;">
-                                    <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); padding: 8px 14px; border-radius: var(--radius-sm);">
+                        <tr id="detail-row-${r.id}" class="detail-row-expanded" style="display: none; background: rgba(15, 23, 42, 0.85);">
+                            <td colspan="6" style="padding: 1.2rem 1.5rem; border-bottom: 2px solid ${isErr ? '#ef4444' : (isWarn ? '#f59e0b' : 'var(--accent-blue)')};">
+                                <div style="display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: center; font-size: 0.9rem;">
+                                    <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.35); padding: 8px 14px; border-radius: var(--radius-sm);">
                                         <span style="color: var(--accent-cyan); font-weight: 600;">✨ Arquivos Novos:</span>
                                         <strong style="color: #ffffff; margin-left: 6px;">${d.added_count || 0} arquivos</strong>
                                         <span style="color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px;">(${d.added_size || '0 B'})</span>
                                     </div>
-                                    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 8px 14px; border-radius: var(--radius-sm);">
+                                    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35); padding: 8px 14px; border-radius: var(--radius-sm);">
                                         <span style="color: var(--status-warning); font-weight: 600;">✏️ Arquivos Modificados:</span>
                                         <strong style="color: #ffffff; margin-left: 6px;">${d.modified_count || 0} arquivos</strong>
                                         <span style="color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px;">(${d.modified_size || '0 B'})</span>
@@ -118,6 +121,27 @@ async function loadDashboardData(selectedDate = null) {
                                         <span style="color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px;">(${d.examined_size || '0 B'})</span>
                                     </div>
                                 </div>
+
+                                ${(isErr || isWarn || r.log_summary) ? `
+                                    <div style="margin-top: 12px; background: ${isErr ? 'rgba(239, 68, 68, 0.12)' : (isWarn ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255,255,255,0.03)')}; border: 1px solid ${isErr ? '#f87171' : (isWarn ? '#fbbf24' : 'var(--border-color)')}; border-radius: var(--radius-sm); padding: 12px 16px;">
+                                        <div style="font-weight: 700; color: ${isErr ? '#f87171' : (isWarn ? '#fbbf24' : 'var(--accent-cyan)')}; font-size: 0.9rem; margin-bottom: 4px;">
+                                            ${isErr ? '❌ Detalhes do Erro Encontrado no Backup:' : (isWarn ? '⚠️ Detalhes do Alerta / Aviso no Backup:' : '📝 Detalhes da Execução:')}
+                                        </div>
+                                        ${d.errors_list && d.errors_list.length > 0 ? `
+                                            <div style="color: #fca5a5; font-size: 0.85rem; font-family: monospace; line-height: 1.5; white-space: pre-wrap;">
+                                                ${d.errors_list.map(e => `• ${escapeHtml(e)}`).join('<br>')}
+                                            </div>
+                                        ` : ''}
+                                        ${d.warnings_list && d.warnings_list.length > 0 ? `
+                                            <div style="color: #fde047; font-size: 0.85rem; font-family: monospace; line-height: 1.5; white-space: pre-wrap;">
+                                                ${d.warnings_list.map(w => `• ${escapeHtml(w)}`).join('<br>')}
+                                            </div>
+                                        ` : ''}
+                                        ${(!d.errors_list || d.errors_list.length === 0) && (!d.warnings_list || d.warnings_list.length === 0) && r.log_summary ? `
+                                            <div style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4;">${escapeHtml(r.log_summary)}</div>
+                                        ` : ''}
+                                    </div>
+                                ` : ''}
                             </td>
                         </tr>
                     `;
@@ -459,8 +483,11 @@ async function loadHistoryData() {
             } else {
                 tbody.innerHTML = data.map(r => {
                     const d = r.details || {};
+                    const isErr = r.status === 'Error' || r.status === 'Fatal' || (d.errors_list && d.errors_list.length > 0);
+                    const isWarn = r.status === 'Warning' || (d.warnings_list && d.warnings_list.length > 0);
+
                     return `
-                        <tr class="expandable-row" onclick="toggleHistoryDetail(${r.id})" style="cursor: pointer;" title="Clique para expandir arquivos novos e modificados">
+                        <tr class="expandable-row" onclick="toggleHistoryDetail(${r.id})" style="cursor: pointer;" title="Clique para expandir arquivos novos, modificados e alertas">
                             <td>
                                 <span id="arrow-icon-${r.id}" style="display: inline-block; transition: transform 0.2s ease; margin-right: 6px; font-size: 0.75rem; color: var(--accent-blue);">▼</span>
                                 #${r.id}
@@ -472,8 +499,8 @@ async function loadHistoryData() {
                             <td>${r.bytes_formatted}</td>
                             <td>${r.duration_formatted}</td>
                         </tr>
-                        <tr id="detail-row-${r.id}" class="detail-row-expanded" style="display: none; background: rgba(15, 23, 42, 0.75);">
-                            <td colspan="7" style="padding: 1.2rem 1.5rem; border-bottom: 2px solid var(--accent-blue);">
+                        <tr id="detail-row-${r.id}" class="detail-row-expanded" style="display: none; background: rgba(15, 23, 42, 0.85);">
+                            <td colspan="7" style="padding: 1.2rem 1.5rem; border-bottom: 2px solid ${isErr ? '#ef4444' : (isWarn ? '#f59e0b' : 'var(--accent-blue)')};">
                                 <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; font-size: 0.9rem;">
                                     <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.35); padding: 10px 16px; border-radius: var(--radius-sm);">
                                         <span style="color: var(--accent-cyan); font-weight: 600;">✨ Arquivos Novos:</span>
@@ -491,7 +518,27 @@ async function loadHistoryData() {
                                         <span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 6px;">(${d.examined_size || '0 B'})</span>
                                     </div>
                                 </div>
-                                ${r.log_summary ? `<div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-secondary); border-top: 1px dashed var(--border-color); padding-top: 8px;"><strong>Resumo do Log:</strong> ${escapeHtml(r.log_summary)}</div>` : ''}
+
+                                ${(isErr || isWarn || r.log_summary) ? `
+                                    <div style="margin-top: 14px; background: ${isErr ? 'rgba(239, 68, 68, 0.12)' : (isWarn ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255,255,255,0.03)')}; border: 1px solid ${isErr ? '#f87171' : (isWarn ? '#fbbf24' : 'var(--border-color)')}; border-radius: var(--radius-sm); padding: 12px 16px;">
+                                        <div style="font-weight: 700; color: ${isErr ? '#f87171' : (isWarn ? '#fbbf24' : 'var(--accent-cyan)')}; font-size: 0.95rem; margin-bottom: 6px;">
+                                            ${isErr ? '❌ Detalhes dos Erros Encontrados no Backup:' : (isWarn ? '⚠️ Detalhes dos Avisos / Alertas do Backup:' : '📝 Detalhes do Log de Execução:')}
+                                        </div>
+                                        ${d.errors_list && d.errors_list.length > 0 ? `
+                                            <div style="color: #fca5a5; font-size: 0.85rem; font-family: monospace; line-height: 1.5; white-space: pre-wrap;">
+                                                ${d.errors_list.map(e => `• ${escapeHtml(e)}`).join('<br>')}
+                                            </div>
+                                        ` : ''}
+                                        ${d.warnings_list && d.warnings_list.length > 0 ? `
+                                            <div style="color: #fde047; font-size: 0.85rem; font-family: monospace; line-height: 1.5; white-space: pre-wrap;">
+                                                ${d.warnings_list.map(w => `• ${escapeHtml(w)}`).join('<br>')}
+                                            </div>
+                                        ` : ''}
+                                        ${(!d.errors_list || d.errors_list.length === 0) && (!d.warnings_list || d.warnings_list.length === 0) && r.log_summary ? `
+                                            <div style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4;">${escapeHtml(r.log_summary)}</div>
+                                        ` : ''}
+                                    </div>
+                                ` : ''}
                             </td>
                         </tr>
                     `;
