@@ -57,8 +57,10 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def get_allowed_client_ids(self):
-        if not self.group or self.group.can_view_all_clients:
-            return None
+        """Retorna lista de IDs de clientes aos quais o usuário tem acesso."""
+        # Administrador principal ou grupos com acesso total enxergam TODOS os clientes
+        if self.username == 'admin' or not self.group or self.group.can_view_all_clients or self.group_id == 1:
+            return None  # None significa acesso total a todos os clientes
         return [c.id for c in self.group.allowed_clients]
 
     def to_dict(self):
