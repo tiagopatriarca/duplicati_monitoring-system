@@ -14,6 +14,7 @@ group_clients = db.Table('group_clients',
 
 class Group(db.Model):
     __tablename__ = 'groups'
+    __table_args__ = {'quote': True}
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False)

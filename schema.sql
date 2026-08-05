@@ -7,10 +7,15 @@ CREATE TABLE IF NOT EXISTS groups (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    can_manage_users TINYINT(1) DEFAULT 0,
-    can_manage_clients TINYINT(1) DEFAULT 0,
-    can_view_all_clients TINYINT(1) DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+-- Tabela de Grupos de Usuários (RBAC)
+CREATE TABLE IF NOT EXISTS `groups` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(100) NOT NULL,
+    `description` VARCHAR(255),
+    `can_manage_users` TINYINT(1) DEFAULT 0,
+    `can_manage_clients` TINYINT(1) DEFAULT 0,
+    `can_view_all_clients` TINYINT(1) DEFAULT 1,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Tabela de Clientes
@@ -23,25 +28,25 @@ CREATE TABLE IF NOT EXISTS clients (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Tabela de Associação N:N entre Grupos e Clientes autorizados
-CREATE TABLE IF NOT EXISTS group_clients (
-    group_id INT NOT NULL,
-    client_id INT NOT NULL,
-    PRIMARY KEY (group_id, client_id),
-    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
-    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+-- Tabela de Associação (Relacionamento N:N entre Grupos e Clientes autorizados)
+CREATE TABLE IF NOT EXISTS `group_clients` (
+    `group_id` INT NOT NULL,
+    `client_id` INT NOT NULL,
+    PRIMARY KEY (`group_id`, `client_id`),
+    FOREIGN KEY (`group_id`) REFERENCES `groups`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Tabela de Usuários
-CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(100) UNIQUE NOT NULL,
-    email VARCHAR(150),
-    password_hash VARCHAR(255) NOT NULL,
-    group_id INT,
-    active TINYINT(1) DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
+-- Tabela de Usuários do Sistema
+CREATE TABLE IF NOT EXISTS `users` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `username` VARCHAR(80) UNIQUE NOT NULL,
+    `password_hash` VARCHAR(255) NOT NULL,
+    `email` VARCHAR(120),
+    `group_id` INT,
+    `active` TINYINT(1) DEFAULT 1,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`group_id`) REFERENCES `groups`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Tabela de Jobs Agendados

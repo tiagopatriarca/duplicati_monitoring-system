@@ -57,10 +57,10 @@ def init_db_with_fallback():
 
     try:
         seed_initial_data()
-        # Garantir permissão total para o grupo Administradores
+        # Garantir permissão total para o grupo Administradores (usando crases para o MySQL 8.0)
         with db.engine.connect() as conn:
-            conn.execute(text("UPDATE groups SET can_view_all_clients = 1 WHERE id = 1 OR name = 'Administradores'"))
-            conn.execute(text("UPDATE users SET group_id = 1 WHERE username = 'admin'"))
+            conn.execute(text("UPDATE `groups` SET can_view_all_clients = 1 WHERE id = 1 OR name = 'Administradores'"))
+            conn.execute(text("UPDATE `users` SET group_id = 1 WHERE username = 'admin'"))
             conn.commit()
     except Exception as e:
         print(f"Aviso na verificação de dados: {e}")
