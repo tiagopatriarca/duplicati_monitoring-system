@@ -136,6 +136,27 @@ class Job(db.Model):
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else ''
         }
 
+def unwrap_duplicati_json(data):
+    """Desencapsula JSONs do Duplicati que foram enviados em campos form (ex: message={...})."""
+    if isinstance(data, dict):
+        for key in ('message', 'json', 'data', 'payload', 'result'):
+            val = data.get(key)
+            if isinstance(val, str) and val.strip().startswith('{'):
+                try:
+                    parsed = json.loads(val)
+                    if isinstance(parsed, dict):
+                        return unwrap_duplicati_json(parsed)
+                except Exception:
+                    pass
+    elif isinstance(data, str) and data.strip().startswith('{'):
+        try:
+            parsed = json.loads(data)
+            if isinstance(parsed, dict):
+                return unwrap_duplicati_json(parsed)
+        except Exception:
+            pass
+    return data
+
 class JobResult(db.Model):
     __tablename__ = 'job_results'
 
@@ -161,9 +182,8 @@ class JobResult(db.Model):
             }
         
         try:
-            data = json.loads(self.raw_payload)
-            if isinstance(data, str):
-                data = json.loads(data)
+            raw_data = json.loads(self.raw_payload)
+            data = unwrap_duplicati_json(raw_data)
             if not isinstance(data, dict):
                 data = {}
         except Exception:
@@ -202,14 +222,14 @@ class JobResult(db.Model):
                     results.extend(collect_list(item, keys))
             return results
 
-        added_count = find_key(data, ['AddedFiles', 'FilesAdded', 'AddedFilesCount', 'Added']) or 0
-        added_size = find_key(data, ['SizeOfAddedFiles', 'AddedFilesSize', 'SizeAdded']) or 0
+        added_count = find_key(data, ['AddedFiles', 'FilesAdded', 'AddedFilesCount', 'Added', 'SizeOfAddedFilesCount']) or 0
+        added_size = find_key(data, ['SizeOfAddedFiles', 'AddedFilesSize', 'BytesAdded', 'SizeAdded']) or 0
 
         mod_count = find_key(data, ['ModifiedFiles', 'FilesModified', 'ModifiedFilesCount', 'Modified']) or 0
-        mod_size = find_key(data, ['SizeOfModifiedFiles', 'ModifiedFilesSize', 'SizeModified']) or 0
+        mod_size = find_key(data, ['SizeOfModifiedFiles', 'ModifiedFilesSize', 'BytesModified', 'SizeModified']) or 0
 
-        exam_count = find_key(data, ['ExaminedFiles', 'FilesExamined', 'Evaluated', 'ExaminedFilesCount']) or 0
-        exam_size = find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'SizeExamined']) or 0
+        exam_count = find_key(data, ['ExaminedFiles', 'FilesExamined', 'Evaluated', 'ExaminedFilesCount', 'Examined']) or 0
+        exam_size = find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined', 'SizeExamined']) or 0
 
         opened_count = find_key(data, ['OpenedFiles', 'FilesOpened', 'Opened']) or 0
         opened_size = find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize']) or 0

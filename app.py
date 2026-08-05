@@ -720,6 +720,9 @@ def webhook_duplicati(webhook_token=None):
             except Exception:
                 data = request.form.to_dict()
 
+        from database import unwrap_duplicati_json
+        data = unwrap_duplicati_json(data)
+
         if not webhook_token:
             webhook_token = request.args.get('token')
 
