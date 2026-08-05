@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadHistoryData();
     } else if (path === '/reports') {
         initReportsPage();
+    } else if (path === '/users') {
+        loadUsersAndGroupsData();
     }
 });
 
@@ -136,6 +138,17 @@ async function loadClientsPageData() {
             fetch('/api/clients'),
             fetch('/api/jobs')
         ]);
+
+        const rawClients = await resClients.json();
+        const rawJobs = await resJobs.json();
+
+        globalClientsCache = Array.isArray(rawClients) ? rawClients : [];
+        globalJobsCache = Array.isArray(rawJobs) ? rawJobs : [];
+
+        // Tabela de Clientes
+        const clientsTbody = document.getElementById('clients-tbody');
+        if (clientsTbody) {
+            if (globalClientsCache.length === 0) {
                 clientsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Nenhum cliente cadastrado.</td></tr>`;
             } else {
                 clientsTbody.innerHTML = globalClientsCache.map(c => `
@@ -143,7 +156,7 @@ async function loadClientsPageData() {
                         <td><strong>${escapeHtml(c.name)}</strong></td>
                         <td>${escapeHtml(c.email || '-')}</td>
                         <td>${escapeHtml(c.contact_phone || '-')}</td>
-                        <td><span class="status-badge Success">${c.job_count} job(s)</span></td>
+                        <td><span class="status-badge Success">${c.jobs_count || c.job_count || 0} job(s)</span></td>
                         <td>
                             <div style="display: flex; gap: 6px;">
                                 <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;" onclick="editClient(${c.id})">✏️ Editar</button>
