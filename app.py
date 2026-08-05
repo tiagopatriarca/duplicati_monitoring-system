@@ -30,39 +30,35 @@ def load_user(user_id):
 # --- INICIALIZAÇÃO DO BANCO E MIGRAÇÕES AUTOMÁTICAS ---
 
 def init_db_with_fallback():
-    try:
-        db.create_all()
-        print("Conectado ao Banco de Dados MySQL com sucesso!")
-    except Exception as e:
-        print(f"Aviso: Não foi possível conectar ao MySQL ({e}).")
-        if app.config.get('USE_SQLITE_FALLBACK'):
-            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///duplicati_local.db'
-            db.init_app(app)
+    """
+    Tenta conectar ao MySQL com retentativas para aguardar o banco estar pronto.
+    Garante que os dados cadastrados no MySQL sejam carregados corretamente.
+    """
+    import time
+    max_retries = 10
+    connected = False
+    
+    for i in range(max_retries):
+        try:
             db.create_all()
+            db.session.execute(text("SELECT 1"))
+            print("Conectado ao Banco de Dados MySQL com sucesso!")
+            connected = True
+            break
+        except Exception as e:
+            print(f"Tentativa {i+1}/{max_retries} de conexão com MySQL ({e}). Aguardando 2s...")
+            time.sleep(2)
+
+    if not connected and app.config.get('USE_SQLITE_FALLBACK'):
+        print("Ativando banco de dados local de fallback SQLite (duplicati_local.db)...")
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///duplicati_local.db'
+        db.init_app(app)
+        db.create_all()
 
     try:
-        # Migração automática: Adicionar coluna webhook_token caso não exista no DB
-        with db.engine.connect() as conn:
-            try:
-                conn.execute(text("SELECT webhook_token FROM jobs LIMIT 1"))
-            except Exception:
-                print("Adicionando coluna webhook_token na tabela jobs...")
-                try:
-                    conn.execute(text("ALTER TABLE jobs ADD COLUMN webhook_token VARCHAR(50)"))
-                    conn.commit()
-                except Exception as ex:
-                    print(f"Aviso na alteração da tabela jobs: {ex}")
-
-        # Garantir que todos os jobs existentes tenham um webhook_token
-        jobs_without_token = Job.query.filter((Job.webhook_token == None) | (Job.webhook_token == '')).all()
-        for j in jobs_without_token:
-            j.webhook_token = generate_webhook_token()
-        if jobs_without_token:
-            db.session.commit()
-
         seed_initial_data()
     except Exception as e:
-        print(f"Aviso na inicialização de dados: {e}")
+        print(f"Aviso na verificação de dados: {e}")
 
 def seed_initial_data():
     admin_group = Group.query.filter_by(name="Administradores").first()

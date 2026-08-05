@@ -17,7 +17,8 @@ class Config:
         f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}?charset=utf8mb4"
     )
     
-    # Configuração de Fallback para SQLite em desenvolvimento local sem Docker/MySQL
-    USE_SQLITE_FALLBACK = os.getenv('USE_SQLITE_FALLBACK', 'true').lower() in ('true', '1')
+    # No ambiente Docker (MYSQL_HOST=db), NÃO usar fallback para SQLite para forçar uso do MySQL
+    is_docker = MYSQL_HOST in ('db', 'mysql', 'duplicati_mysql_db')
+    USE_SQLITE_FALLBACK = False if is_docker else (os.getenv('USE_SQLITE_FALLBACK', 'true').lower() in ('true', '1'))
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
