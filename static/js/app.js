@@ -20,51 +20,52 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- DASHBOARD FUNCTIONS ---
-async function loadDashboardData(selectedDate = null) {
+async function loadDashboardData() {
     try {
-        let url = '/api/dashboard-stats';
-        if (selectedDate) url += `?date=${selectedDate}`;
-
-        const res = await fetch(url);
+        const res = await fetch('/api/dashboard-stats');
+        if (!res.ok) {
+            console.error("Erro na API /api/dashboard-stats:", res.status);
+            return;
+        }
         const data = await res.json();
+        if (data.error) {
+            console.error("Erro retornado do servidor:", data.error);
+            return;
+        }
 
-        document.getElementById('stat-clients').textContent = data.total_clients;
-        document.getElementById('stat-jobs').textContent = data.total_jobs;
-        document.getElementById('stat-success').textContent = data.success_today;
-        document.getElementById('stat-warning').textContent = data.warning_today;
-        document.getElementById('stat-error').textContent = data.error_today;
-        document.getElementById('stat-bytes').textContent = data.total_bytes_today_formatted;
+        document.getElementById('stat-total-clients').textContent = data.stats.total_clients || 0;
+        document.getElementById('stat-active-jobs').textContent = data.stats.active_jobs || 0;
+        document.getElementById('stat-success-today').textContent = data.stats.success_today || 0;
+        document.getElementById('stat-alerts-today').textContent = data.stats.alerts_today || 0;
+        document.getElementById('stat-errors-today').textContent = data.stats.errors_today || 0;
+        document.getElementById('stat-bytes-today').textContent = data.stats.bytes_today_formatted || '0 B';
 
-        const alertSection = document.getElementById('missed-jobs-section');
+        // Alertas de Jobs Não Executados / Falhas
+        const alertSection = document.getElementById('missed-jobs-alert-section');
         const alertGrid = document.getElementById('missed-jobs-grid');
 
-        if (data.missed_count > 0) {
+        if (alertSection && alertGrid && Array.isArray(data.missed_jobs) && data.missed_jobs.length > 0) {
             alertSection.style.display = 'block';
-            document.getElementById('missed-alert-count').textContent = data.missed_count;
-
-            alertGrid.innerHTML = data.missed_jobs.map(job => `
+            alertGrid.innerHTML = data.missed_jobs.map(item => `
                 <div class="missed-job-card">
-                    <div class="missed-job-info">
-                        <div class="missed-job-client">${escapeHtml(job.client_name)}</div>
-                        <h4>${escapeHtml(job.job_name)}</h4>
-                    </div>
-                    <div class="missed-details">
-                        <span class="detail-pill">🗓 ${job.day_of_week}</span>
-                        <span class="detail-pill">⏱ Freq: ${job.frequency_per_day}x/dia</span>
-                        <span class="detail-pill">⚠️ Encontradas: ${job.executions_found}</span>
-                    </div>
-                    <div class="badge-investigate">🚨 INVESTIGAR - ${job.status_alert}</div>
+                    <div style="font-weight: 700; font-size: 1.05rem; color: #ffffff;">🏢 ${escapeHtml(item.client_name)}</div>
+                    <div style="font-size: 0.9rem; color: var(--accent-cyan); margin-top: 2px;">⚡ ${escapeHtml(item.job_name)}</div>
+                    <div style="font-size: 0.82rem; color: #f87171; margin-top: 6px; font-weight: 600;">⚠️ ${escapeHtml(item.reason)}</div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Última Execução: ${item.last_execution}</div>
                 </div>
             `).join('');
-        } else {
+        } else if (alertSection) {
             alertSection.style.display = 'none';
-           // Tabela Rápida dos Últimos Resultados (Com detalhamento expandível)
+        }
+
+        // Tabela Rápida dos Últimos Resultados
         const tbody = document.getElementById('recent-results-tbody');
         if (tbody) {
-            if (data.recent_results.length === 0) {
+            const recent = Array.isArray(data.recent_results) ? data.recent_results : [];
+            if (recent.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">Nenhum resultado registrado até o momento.</td></tr>`;
             } else {
-                tbody.innerHTML = data.recent_results.map(r => {
+                tbody.innerHTML = recent.map(r => {
                     const d = r.details || {};
                     return `
                         <tr class="expandable-row" onclick="toggleHistoryDetail(${r.id})" style="cursor: pointer;" title="Clique para ver arquivos novos e modificados">
@@ -104,24 +105,37 @@ async function loadDashboardData(selectedDate = null) {
             }
         }
     } catch (err) {
-        console.error('Erro ao carregar dados do dashboard:', err);
+        console.error('Erro ao carregar dashboard:', err);
     }
 }
 
-// --- CLIENTS & JOBS MANAGEMENT ---
+// --- CLIENTS & JOBS PAGE ---
+async function loadUsersAndGroupsData() {
+    try {
+        const [resUsers, resGroups] = await Promise.all([
+            fetch('/api/users'),
+            fetch('/api/groups')
+        ]);
+
+        const rawUsers = await resUsers.json();
+        const rawGroups = await resGroups.json();
+
+        const users = Array.isArray(rawUsers) ? rawUsers : [];
+        const groups = Array.isArray(rawGroups) ? rawGroups : [];
+
+        renderUsersTable(users);
+        renderGroupsTable(groups);
+    } catch (e) {
+        console.error('Erro ao carregar usuários e grupos:', e);
+    }
+}
+
 async function loadClientsPageData() {
     try {
         const [resClients, resJobs] = await Promise.all([
             fetch('/api/clients'),
             fetch('/api/jobs')
         ]);
-        globalClientsCache = await resClients.json();
-        globalJobsCache = await resJobs.json();
-
-        // Tabela de Clientes
-        const clientsTbody = document.getElementById('clients-tbody');
-        if (clientsTbody) {
-            if (globalClientsCache.length === 0) {
                 clientsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Nenhum cliente cadastrado.</td></tr>`;
             } else {
                 clientsTbody.innerHTML = globalClientsCache.map(c => `
