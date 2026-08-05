@@ -22,9 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- DASHBOARD FUNCTIONS ---
-async function loadDashboardData() {
+async function loadDashboardData(selectedDate = null) {
     try {
-        const res = await fetch('/api/dashboard-stats');
+        let url = '/api/dashboard-stats';
+        if (selectedDate) url += `?date=${selectedDate}`;
+
+        const res = await fetch(url);
         if (!res.ok) {
             console.error("Erro na API /api/dashboard-stats:", res.status);
             return;
@@ -35,25 +38,40 @@ async function loadDashboardData() {
             return;
         }
 
-        document.getElementById('stat-total-clients').textContent = data.stats.total_clients || 0;
-        document.getElementById('stat-active-jobs').textContent = data.stats.active_jobs || 0;
-        document.getElementById('stat-success-today').textContent = data.stats.success_today || 0;
-        document.getElementById('stat-alerts-today').textContent = data.stats.alerts_today || 0;
-        document.getElementById('stat-errors-today').textContent = data.stats.errors_today || 0;
-        document.getElementById('stat-bytes-today').textContent = data.stats.bytes_today_formatted || '0 B';
+        const elClients = document.getElementById('stat-clients');
+        const elJobs = document.getElementById('stat-jobs');
+        const elSuccess = document.getElementById('stat-success');
+        const elWarning = document.getElementById('stat-warning');
+        const elError = document.getElementById('stat-error');
+        const elBytes = document.getElementById('stat-bytes');
+
+        if (elClients) elClients.textContent = data.total_clients || 0;
+        if (elJobs) elJobs.textContent = data.total_jobs || 0;
+        if (elSuccess) elSuccess.textContent = data.success_today || 0;
+        if (elWarning) elWarning.textContent = data.warning_today || 0;
+        if (elError) elError.textContent = data.error_today || 0;
+        if (elBytes) elBytes.textContent = data.total_bytes_today_formatted || '0 B';
 
         // Alertas de Jobs Não Executados / Falhas
-        const alertSection = document.getElementById('missed-jobs-alert-section');
+        const alertSection = document.getElementById('missed-jobs-section');
         const alertGrid = document.getElementById('missed-jobs-grid');
 
         if (alertSection && alertGrid && Array.isArray(data.missed_jobs) && data.missed_jobs.length > 0) {
             alertSection.style.display = 'block';
+            const countEl = document.getElementById('missed-alert-count');
+            if (countEl) countEl.textContent = data.missed_count || data.missed_jobs.length;
+
             alertGrid.innerHTML = data.missed_jobs.map(item => `
                 <div class="missed-job-card">
-                    <div style="font-weight: 700; font-size: 1.05rem; color: #ffffff;">🏢 ${escapeHtml(item.client_name)}</div>
-                    <div style="font-size: 0.9rem; color: var(--accent-cyan); margin-top: 2px;">⚡ ${escapeHtml(item.job_name)}</div>
-                    <div style="font-size: 0.82rem; color: #f87171; margin-top: 6px; font-weight: 600;">⚠️ ${escapeHtml(item.reason)}</div>
-                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Última Execução: ${item.last_execution}</div>
+                    <div class="missed-job-info">
+                        <div class="missed-job-client">🏢 ${escapeHtml(item.client_name)}</div>
+                        <h4 style="margin: 4px 0; color: var(--accent-cyan);">⚡ ${escapeHtml(item.job_name)}</h4>
+                    </div>
+                    <div class="missed-details" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;">
+                        <span class="detail-pill" style="background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 4px; font-size: 0.78rem;">🗓 ${item.day_of_week || ''}</span>
+                        <span class="detail-pill" style="background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 4px; font-size: 0.78rem;">⏱ Freq: ${item.frequency_per_day || 1}x/dia</span>
+                        <span class="detail-pill" style="background: rgba(239,68,68,0.15); color: #f87171; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 600;">⚠️ ${escapeHtml(item.status_alert || item.reason || 'Não executado')}</span>
+                    </div>
                 </div>
             `).join('');
         } else if (alertSection) {
