@@ -61,7 +61,9 @@ def check_missed_jobs(target_date=None, allowed_client_ids=None):
     elif isinstance(target_date, str):
         target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
 
-    day_code = DAY_MAP[target_date.weekday()]
+    from datetime import timedelta
+    eval_date = target_date - timedelta(days=1)
+    day_code = DAY_MAP[eval_date.weekday()]
     
     query = Job.query.filter_by(active=True)
     if allowed_client_ids is not None:
@@ -74,34 +76,33 @@ def check_missed_jobs(target_date=None, allowed_client_ids=None):
         configured_days = job.get_days_list()
         
         if day_code in configured_days:
-            start_dt = datetime.combine(target_date, datetime.min.time())
-            end_dt = datetime.combine(target_date, datetime.max.time())
+            start_dt = datetime.combine(eval_date, datetime.min.time())
+            end_dt = datetime.combine(eval_date, datetime.max.time())
             
-            executions_today = JobResult.query.filter(
+            executions_eval_date = JobResult.query.filter(
                 JobResult.job_id == job.id,
                 JobResult.execution_date >= start_dt,
                 JobResult.execution_date <= end_dt
             ).all()
 
-            executed_count = len(executions_today)
-            required_count = job.frequency_per_day
+            success_executions = [e for e in executions_eval_date if e.status == 'Success']
 
-            if executed_count < required_count:
-                last_status = executions_today[-1].status if executions_today else "Nenhuma Execução"
+            if len(success_executions) == 0:
+                last_status = executions_eval_date[-1].status if executions_eval_date else "Nenhuma Execução"
                 
                 missed_jobs.append({
                     'job_id': job.id,
                     'job_name': job.job_name,
                     'client_id': job.client_id,
                     'client_name': job.client.name if job.client else 'Desconhecido',
-                    'target_date': target_date.strftime('%Y-%m-%d'),
+                    'target_date': eval_date.strftime('%Y-%m-%d'),
                     'day_of_week': DAY_LABELS_PT.get(day_code, day_code),
-                    'frequency_per_day': required_count,
-                    'executions_found': executed_count,
-                    'missing_executions': required_count - executed_count,
+                    'frequency_per_day': job.frequency_per_day,
+                    'executions_found': len(executions_eval_date),
+                    'missing_executions': job.frequency_per_day - len(executions_eval_date),
                     'expected_time': job.expected_time or 'Não especificado',
                     'last_status': last_status,
-                    'status_alert': 'NÃO EXECUTADO' if executed_count == 0 else 'PARCIALMENTE EXECUTADO',
+                    'status_alert': 'FALHA OU NÃO EXECUTADO',
                     'needs_investigation': True
                 })
 
