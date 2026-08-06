@@ -137,24 +137,32 @@ class Job(db.Model):
         }
 
 def unwrap_duplicati_json(data):
-    """Desencapsula JSONs do Duplicati que foram enviados em campos form (ex: message={...})."""
-    if isinstance(data, dict):
-        for key in ('message', 'json', 'data', 'payload', 'result'):
-            val = data.get(key)
-            if isinstance(val, str) and val.strip().startswith('{'):
-                try:
-                    parsed = json.loads(val)
-                    if isinstance(parsed, dict):
-                        return unwrap_duplicati_json(parsed)
-                except Exception:
-                    pass
-    elif isinstance(data, str) and data.strip().startswith('{'):
+    """
+    Desencapsula recursivamente strings JSON aninhadas dentro de dicionários 
+    (ex: Data: "{\"AddedFiles\": 23, \"SizeOfAddedFiles\": 558783791...}").
+    """
+    if isinstance(data, str) and data.strip().startswith('{'):
         try:
             parsed = json.loads(data)
-            if isinstance(parsed, dict):
-                return unwrap_duplicati_json(parsed)
+            return unwrap_duplicati_json(parsed)
         except Exception:
-            pass
+            return data
+
+    if isinstance(data, dict):
+        new_data = {}
+        for k, v in data.items():
+            if isinstance(v, str) and (v.strip().startswith('{') or v.strip().startswith('[')):
+                try:
+                    parsed_v = json.loads(v)
+                    new_data[k] = unwrap_duplicati_json(parsed_v)
+                except Exception:
+                    new_data[k] = v
+            elif isinstance(v, (dict, list)):
+                new_data[k] = unwrap_duplicati_json(v)
+            else:
+                new_data[k] = v
+        return new_data
+
     return data
 
 class JobResult(db.Model):
