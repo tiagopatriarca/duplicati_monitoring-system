@@ -233,17 +233,35 @@ class JobResult(db.Model):
                     results.extend(collect_list(item, keys))
             return results
 
-        added_count = find_key(data, ['AddedFiles', 'FilesAdded', 'AddedFilesCount', 'Added', 'SizeOfAddedFilesCount']) or 0
-        added_size = find_key(data, ['SizeOfAddedFiles', 'AddedFilesSize', 'BytesAdded', 'SizeAdded']) or 0
+        added_count = find_key(data, ['AddedFiles', 'FilesAdded', 'AddedFilesCount', 'Added', 'SizeOfAddedFilesCount'])
+        added_size = find_key(data, ['SizeOfAddedFiles', 'AddedFilesSize', 'BytesAdded', 'SizeAdded'])
+        mod_count = find_key(data, ['ModifiedFiles', 'FilesModified', 'ModifiedFilesCount', 'Modified'])
+        mod_size = find_key(data, ['SizeOfModifiedFiles', 'ModifiedFilesSize', 'BytesModified', 'SizeModified'])
+        exam_count = find_key(data, ['ExaminedFiles', 'FilesExamined', 'Evaluated', 'ExaminedFilesCount', 'Examined'])
+        exam_size = find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined', 'SizeExamined'])
+        opened_count = find_key(data, ['OpenedFiles', 'FilesOpened', 'Opened', 'OpenedFilesCount'])
+        opened_size = find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize', 'BytesOpened', 'SizeOpened'])
 
-        mod_count = find_key(data, ['ModifiedFiles', 'FilesModified', 'ModifiedFilesCount', 'Modified']) or 0
-        mod_size = find_key(data, ['SizeOfModifiedFiles', 'ModifiedFilesSize', 'BytesModified', 'SizeModified']) or 0
+        # Fallback Robusto via Regex caso a decodificação JSON aninhada tenha falhado e os dados estejam apenas na string raw_payload
+        import re
+        def regex_fallback(keys, current_val):
+            if current_val is not None and str(current_val).strip() != '' and str(current_val).strip() != '0':
+                return current_val
+            for key in keys:
+                pattern = r'\\?["\']?' + key + r'\\?["\']?\s*[:=]\s*(\d+)'
+                match = re.search(pattern, self.raw_payload or '', re.IGNORECASE)
+                if match:
+                    return match.group(1)
+            return 0
 
-        exam_count = find_key(data, ['ExaminedFiles', 'FilesExamined', 'Evaluated', 'ExaminedFilesCount', 'Examined']) or 0
-        exam_size = find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined', 'SizeExamined']) or 0
-
-        opened_count = find_key(data, ['OpenedFiles', 'FilesOpened', 'Opened', 'OpenedFilesCount']) or 0
-        opened_size = find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize', 'BytesOpened', 'SizeOpened']) or 0
+        added_count = regex_fallback(['AddedFiles', 'FilesAdded', 'AddedFilesCount', 'Added', 'SizeOfAddedFilesCount'], added_count)
+        added_size = regex_fallback(['SizeOfAddedFiles', 'AddedFilesSize', 'BytesAdded', 'SizeAdded'], added_size)
+        mod_count = regex_fallback(['ModifiedFiles', 'FilesModified', 'ModifiedFilesCount', 'Modified'], mod_count)
+        mod_size = regex_fallback(['SizeOfModifiedFiles', 'ModifiedFilesSize', 'BytesModified', 'SizeModified'], mod_size)
+        exam_count = regex_fallback(['ExaminedFiles', 'FilesExamined', 'Evaluated', 'ExaminedFilesCount', 'Examined'], exam_count)
+        exam_size = regex_fallback(['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined', 'SizeExamined'], exam_size)
+        opened_count = regex_fallback(['OpenedFiles', 'FilesOpened', 'Opened', 'OpenedFilesCount'], opened_count)
+        opened_size = regex_fallback(['SizeOfOpenedFiles', 'OpenedFilesSize', 'BytesOpened', 'SizeOpened'], opened_size)
 
         errors_list = collect_list(data, ['Errors', 'ErrorMessages', 'ErrorsList', 'FatalErrors'])
         warnings_list = collect_list(data, ['Warnings', 'WarningMessages', 'WarningsList'])
