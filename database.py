@@ -199,10 +199,13 @@ class JobResult(db.Model):
 
         def find_key(obj, keys):
             if isinstance(obj, dict):
+                # Etapa 1: Verificar se alguma chave do nível atual coincide diretamente
                 for k, v in obj.items():
                     if k.lower() in [key.lower() for key in keys]:
                         if v is not None and str(v).strip() != '':
                             return v
+                # Etapa 2: Se não encontrou no nível atual, percorrer sub-dicionários/listas
+                for k, v in obj.items():
                     if isinstance(v, (dict, list)):
                         res = find_key(v, keys)
                         if res is not None:
