@@ -271,12 +271,12 @@ class JobResult(db.Model):
             if current_list and len(current_list) > 0:
                 return current_list
             for key in keys:
-                pattern = r'\\?["\']?' + key + r'\\?["\']?\s*[:=]\s*(\[.*?\])'
+                pattern = r'["\']?' + key + r'["\']?\s*[:=]\s*\[(.*?)\]\s*(?:,|})'
                 match = re.search(pattern, self.raw_payload or '', re.IGNORECASE)
                 if match:
                     try:
                         arr_str = match.group(1).replace('\\"', '"').replace("\\'", "'")
-                        items = re.findall(r'["\'](.*?)["\'](?:\s*,|\s*\])', arr_str)
+                        items = re.findall(r'["\'](.*?)["\'](?:\s*,|\s*$)', arr_str)
                         if items:
                             return [item for item in items if item.strip()]
                     except Exception:
