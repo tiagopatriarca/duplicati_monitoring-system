@@ -142,7 +142,12 @@ async function loadDashboardData(selectedDate = null) {
                                                 ${d.warnings_list.map(w => `• ${escapeHtml(w)}`).join('<br>')}
                                             </div>
                                         ` : ''}
-                                        ${(!d.errors_list || d.errors_list.length === 0) && (!d.warnings_list || d.warnings_list.length === 0) && r.log_summary ? `
+                                        ${d.messages_list && d.messages_list.length > 0 && (!d.errors_list || d.errors_list.length === 0) && (!d.warnings_list || d.warnings_list.length === 0) ? `
+                                            <div style="color: var(--text-secondary); font-size: 0.85rem; font-family: monospace; line-height: 1.5; white-space: pre-wrap;">
+                                                ${d.messages_list.map(m => `• ${escapeHtml(m)}`).join('<br>')}
+                                            </div>
+                                        ` : ''}
+                                        ${(!d.errors_list || d.errors_list.length === 0) && (!d.warnings_list || d.warnings_list.length === 0) && (!d.messages_list || d.messages_list.length === 0) && r.log_summary ? `
                                             <div style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4;">${escapeHtml(r.log_summary)}</div>
                                         ` : ''}
                                     </div>
@@ -544,7 +549,12 @@ async function loadHistoryData() {
                                                 ${d.warnings_list.map(w => `• ${escapeHtml(w)}`).join('<br>')}
                                             </div>
                                         ` : ''}
-                                        ${(!d.errors_list || d.errors_list.length === 0) && (!d.warnings_list || d.warnings_list.length === 0) && r.log_summary ? `
+                                        ${d.messages_list && d.messages_list.length > 0 && (!d.errors_list || d.errors_list.length === 0) && (!d.warnings_list || d.warnings_list.length === 0) ? `
+                                            <div style="color: var(--text-secondary); font-size: 0.85rem; font-family: monospace; line-height: 1.5; white-space: pre-wrap;">
+                                                ${d.messages_list.map(m => `• ${escapeHtml(m)}`).join('<br>')}
+                                            </div>
+                                        ` : ''}
+                                        ${(!d.errors_list || d.errors_list.length === 0) && (!d.warnings_list || d.warnings_list.length === 0) && (!d.messages_list || d.messages_list.length === 0) && r.log_summary ? `
                                             <div style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4;">${escapeHtml(r.log_summary)}</div>
                                         ` : ''}
                                     </div>
