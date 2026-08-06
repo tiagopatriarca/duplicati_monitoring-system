@@ -267,6 +267,26 @@ class JobResult(db.Model):
         warnings_list = collect_list(data, ['Warnings', 'WarningMessages', 'WarningsList'])
         messages_list = collect_list(data, ['Messages', 'LogLines', 'LogMessages'])
 
+        def regex_list_fallback(keys, current_list):
+            if current_list and len(current_list) > 0:
+                return current_list
+            for key in keys:
+                pattern = r'\\?["\']?' + key + r'\\?["\']?\s*[:=]\s*(\[.*?\])'
+                match = re.search(pattern, self.raw_payload or '', re.IGNORECASE)
+                if match:
+                    try:
+                        arr_str = match.group(1).replace('\\"', '"').replace("\\'", "'")
+                        items = re.findall(r'["\'](.*?)["\'](?:\s*,|\s*\])', arr_str)
+                        if items:
+                            return [item for item in items if item.strip()]
+                    except Exception:
+                        pass
+            return current_list
+
+        errors_list = regex_list_fallback(['Errors', 'ErrorMessages', 'ErrorsList', 'FatalErrors'], errors_list)
+        warnings_list = regex_list_fallback(['Warnings', 'WarningMessages', 'WarningsList'], warnings_list)
+        messages_list = regex_list_fallback(['Messages', 'LogLines', 'LogMessages'], messages_list)
+
         def parse_int(val):
             try:
                 return int(float(str(val)))
