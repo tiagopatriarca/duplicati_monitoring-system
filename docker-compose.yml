@@ -29,12 +29,16 @@ services:
     ports:
       - "5000:5000"
     environment:
+      - TZ=America/Bahia
       - MYSQL_HOST=db
       - MYSQL_PORT=3306
       - MYSQL_USER=duplicati_user
       - MYSQL_PASSWORD=duplicati_password_123
       - MYSQL_DB=duplicati_monitor
       - SECRET_KEY=duplicati_super_secret_key_2026
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - db
     labels:

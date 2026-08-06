@@ -115,6 +115,11 @@ async function loadDashboardData(selectedDate = null) {
                                         <strong style="color: #ffffff; margin-left: 6px;">${d.modified_count || 0} arquivos</strong>
                                         <span style="color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px;">(${d.modified_size || '0 B'})</span>
                                     </div>
+                                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); padding: 8px 14px; border-radius: var(--radius-sm);">
+                                        <span style="color: #34d399; font-weight: 600;">📂 Arquivos Abertos:</span>
+                                        <strong style="color: #ffffff; margin-left: 6px;">${d.opened_count || 0} arquivos</strong>
+                                        <span style="color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px;">(${d.opened_size || '0 B'})</span>
+                                    </div>
                                     <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); padding: 8px 14px; border-radius: var(--radius-sm);">
                                         <span style="color: var(--text-secondary); font-weight: 500;">🔍 Total Examinado:</span>
                                         <strong style="color: #ffffff; margin-left: 6px;">${d.examined_count || 0} arquivos</strong>
@@ -511,6 +516,11 @@ async function loadHistoryData() {
                                         <span style="color: var(--status-warning); font-weight: 600;">✏️ Arquivos Modificados:</span>
                                         <strong style="color: #ffffff; margin-left: 6px; font-size: 1rem;">${d.modified_count || 0} arquivos</strong>
                                         <span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 6px;">(${d.modified_size || '0 B'})</span>
+                                    </div>
+                                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); padding: 10px 16px; border-radius: var(--radius-sm);">
+                                        <span style="color: #34d399; font-weight: 600;">📂 Arquivos Abertos:</span>
+                                        <strong style="color: #ffffff; margin-left: 6px; font-size: 1rem;">${d.opened_count || 0} arquivos</strong>
+                                        <span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 6px;">(${d.opened_size || '0 B'})</span>
                                     </div>
                                     <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: var(--radius-sm);">
                                         <span style="color: var(--text-secondary); font-weight: 500;">🔍 Total Examinado:</span>

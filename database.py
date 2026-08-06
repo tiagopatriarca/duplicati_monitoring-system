@@ -239,8 +239,8 @@ class JobResult(db.Model):
         exam_count = find_key(data, ['ExaminedFiles', 'FilesExamined', 'Evaluated', 'ExaminedFilesCount', 'Examined']) or 0
         exam_size = find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined', 'SizeExamined']) or 0
 
-        opened_count = find_key(data, ['OpenedFiles', 'FilesOpened', 'Opened']) or 0
-        opened_size = find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize']) or 0
+        opened_count = find_key(data, ['OpenedFiles', 'FilesOpened', 'Opened', 'OpenedFilesCount']) or 0
+        opened_size = find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize', 'BytesOpened', 'SizeOpened']) or 0
 
         errors_list = collect_list(data, ['Errors', 'ErrorMessages', 'ErrorsList', 'FatalErrors'])
         warnings_list = collect_list(data, ['Warnings', 'WarningMessages', 'WarningsList'])
