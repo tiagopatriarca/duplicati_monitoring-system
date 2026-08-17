@@ -637,43 +637,70 @@ def parse_duplicati_payload(data):
                 status = candidate_str
                 break
 
+    def find_key(obj, keys):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k.lower() in [key.lower() for key in keys]:
+                    if v is not None and str(v).strip() != '':
+                        return v
+            for k, v in obj.items():
+                if isinstance(v, (dict, list)):
+                    res = find_key(v, keys)
+                    if res is not None:
+                        return res
+        elif isinstance(obj, list):
+            for item in obj:
+                res = find_key(item, keys)
+                if res is not None:
+                    return res
+        return None
+
+    # Try to find bytes in order of priority: 
+    # 1. BytesUploaded (Actual transfer size)
+    # 2. SizeOfModifiedFiles + SizeOfAddedFiles (What changed)
+    # 3. SizeOfOpenedFiles or SizeOfExaminedFiles (What was processed)
+    bytes_uploaded = find_key(data, ['BytesUploaded'])
+    bytes_added = find_key(data, ['SizeOfAddedFiles', 'AddedFilesSize', 'BytesAdded'])
+    bytes_mod = find_key(data, ['SizeOfModifiedFiles', 'ModifiedFilesSize', 'BytesModified'])
+    bytes_opened = find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize', 'BytesOpened'])
+    bytes_exam = find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined'])
+    
+    def parse_int(v):
+        try:
+            return int(float(str(v)))
+        except:
+            return 0
+            
     bytes_copied = 0
-    for src in dict_sources:
-        val = (
-            src.get('BytesUploaded') or 
-            src.get('SizeOfAddedFiles') or 
-            src.get('SizeOfOpenedFiles') or 
-            src.get('SizeOfExaminedFiles') or 
-            src.get('size')
-        )
-        if val is not None:
-            try:
-                val_int = int(float(str(val)))
-                if val_int > 0:
-                    bytes_copied = val_int
-                    break
-            except (ValueError, TypeError):
-                pass
+    if parse_int(bytes_uploaded) > 0:
+        bytes_copied = parse_int(bytes_uploaded)
+    elif parse_int(bytes_added) > 0 or parse_int(bytes_mod) > 0:
+        bytes_copied = parse_int(bytes_added) + parse_int(bytes_mod)
+    elif parse_int(bytes_opened) > 0:
+        bytes_copied = parse_int(bytes_opened)
+    elif parse_int(bytes_exam) > 0:
+        bytes_copied = parse_int(bytes_exam)
+    else:
+        # Fallback to older generic keys
+        val = find_key(data, ['size'])
+        bytes_copied = parse_int(val)
 
     duration_seconds = 0
-    for src in dict_sources:
-        dur_val = src.get('Duration')
-        if dur_val:
-            dur_str = str(dur_val).strip()
-            try:
-                if ':' in dur_str:
-                    time_part = dur_str.split('.')[0]
-                    parts = time_part.split(':')
-                    if len(parts) == 3:
-                        duration_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-                    elif len(parts) == 2:
-                        duration_seconds = int(parts[0]) * 60 + int(parts[1])
-                else:
-                    duration_seconds = int(float(dur_str))
-                if duration_seconds > 0:
-                    break
-            except Exception:
-                pass
+    dur_val = find_key(data, ['Duration'])
+    if dur_val:
+        dur_str = str(dur_val).strip()
+        try:
+            if ':' in dur_str:
+                time_part = dur_str.split('.')[0]
+                parts = time_part.split(':')
+                if len(parts) == 3:
+                    duration_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                elif len(parts) == 2:
+                    duration_seconds = int(parts[0]) * 60 + int(parts[1])
+            else:
+                duration_seconds = int(float(dur_str))
+        except Exception:
+            pass
 
     if duration_seconds == 0:
         begin_str = None
