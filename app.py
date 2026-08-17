@@ -606,7 +606,7 @@ def api_delete_group(group_id):
     db.session.commit()
     return jsonify({'success': True})
 
-def parse_duplicati_payload(data):
+def parse_duplicati_payload(data, raw_body=""):
     """
     Extrai status, tamanho em bytes e duração de qualquer versão de JSON ou Form do Duplicati.
     """
@@ -659,31 +659,41 @@ def parse_duplicati_payload(data):
     # 1. BytesUploaded (Actual transfer size)
     # 2. SizeOfModifiedFiles + SizeOfAddedFiles (What changed)
     # 3. SizeOfOpenedFiles or SizeOfExaminedFiles (What was processed)
-    bytes_uploaded = find_key(data, ['BytesUploaded'])
-    bytes_added = find_key(data, ['SizeOfAddedFiles', 'AddedFilesSize', 'BytesAdded'])
-    bytes_mod = find_key(data, ['SizeOfModifiedFiles', 'ModifiedFilesSize', 'BytesModified'])
-    bytes_opened = find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize', 'BytesOpened'])
-    bytes_exam = find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined'])
-    
+    def regex_fallback(keys):
+        if not raw_body:
+            return 0
+        import re
+        for key in keys:
+            pattern = r'\\?["\']?' + key + r'\\?["\']?\s*[:=]\s*(\d+)'
+            match = re.search(pattern, raw_body, re.IGNORECASE)
+            if match:
+                return int(match.group(1))
+        return 0
+
     def parse_int(v):
         try:
             return int(float(str(v)))
         except:
             return 0
-            
+
+    bytes_uploaded = parse_int(find_key(data, ['BytesUploaded'])) or regex_fallback(['BytesUploaded'])
+    bytes_added = parse_int(find_key(data, ['SizeOfAddedFiles', 'AddedFilesSize', 'BytesAdded'])) or regex_fallback(['SizeOfAddedFiles', 'AddedFilesSize', 'BytesAdded'])
+    bytes_mod = parse_int(find_key(data, ['SizeOfModifiedFiles', 'ModifiedFilesSize', 'BytesModified'])) or regex_fallback(['SizeOfModifiedFiles', 'ModifiedFilesSize', 'BytesModified'])
+    bytes_opened = parse_int(find_key(data, ['SizeOfOpenedFiles', 'OpenedFilesSize', 'BytesOpened'])) or regex_fallback(['SizeOfOpenedFiles', 'OpenedFilesSize', 'BytesOpened'])
+    bytes_exam = parse_int(find_key(data, ['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined'])) or regex_fallback(['SizeOfExaminedFiles', 'ExaminedFilesSize', 'BytesExamined'])
+    
     bytes_copied = 0
-    if parse_int(bytes_uploaded) > 0:
-        bytes_copied = parse_int(bytes_uploaded)
-    elif parse_int(bytes_added) > 0 or parse_int(bytes_mod) > 0:
-        bytes_copied = parse_int(bytes_added) + parse_int(bytes_mod)
-    elif parse_int(bytes_opened) > 0:
-        bytes_copied = parse_int(bytes_opened)
-    elif parse_int(bytes_exam) > 0:
-        bytes_copied = parse_int(bytes_exam)
+    if bytes_uploaded > 0:
+        bytes_copied = bytes_uploaded
+    elif bytes_added > 0 or bytes_mod > 0:
+        bytes_copied = bytes_added + bytes_mod
+    elif bytes_opened > 0:
+        bytes_copied = bytes_opened
+    elif bytes_exam > 0:
+        bytes_copied = bytes_exam
     else:
         # Fallback to older generic keys
-        val = find_key(data, ['size'])
-        bytes_copied = parse_int(val)
+        bytes_copied = parse_int(find_key(data, ['size'])) or regex_fallback(['size'])
 
     duration_seconds = 0
     dur_val = find_key(data, ['Duration'])
@@ -738,11 +748,11 @@ def webhook_duplicati(webhook_token=None):
     """
     try:
         data = {}
+        raw_body = request.get_data(as_text=True)
         if request.is_json:
             data = request.get_json(silent=True) or {}
         else:
             try:
-                raw_body = request.get_data(as_text=True)
                 data = json.loads(raw_body)
             except Exception:
                 data = request.form.to_dict()
@@ -757,7 +767,7 @@ def webhook_duplicati(webhook_token=None):
         if webhook_token:
             target_job = Job.query.filter_by(webhook_token=webhook_token).first()
 
-        parsed = parse_duplicati_payload(data)
+        parsed = parse_duplicati_payload(data, raw_body=raw_body)
         backup_name = parsed['backup_name'] or (target_job.job_name if target_job else 'Backup Desconhecido')
         status = parsed['status']
         bytes_copied = parsed['bytes_copied']
@@ -791,7 +801,7 @@ def webhook_duplicati(webhook_token=None):
             status=status,
             duration_seconds=duration_seconds,
             log_summary=f"Recebido via Webhook (Job: {target_job.job_name}). Status: {status}",
-            raw_payload=json.dumps(data, ensure_ascii=False)
+            raw_payload=raw_body if raw_body else json.dumps(data, ensure_ascii=False)
         )
         db.session.add(result)
         db.session.commit()
