@@ -5,8 +5,22 @@
 {% block content %}
 <!-- CABEÇALHO EXCLUSIVO PARA IMPRESSÃO (A4) -->
 <div class="print-only-header" style="display: none;">
-    <h1 id="print-report-title" style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; color: #000000; font-weight: 700; margin-bottom: 4px;">Relatório de Backup - DuplicatiShield</h1>
-    <p id="print-report-subtitle" style="font-size: 1rem; color: #475569; font-weight: 500;">Período Selecionado</p>
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="{{ url_for('static', filename='assets/images/tiplus_logo.png') }}" alt="TI Plus Logo" style="max-height: 45px; object-fit: contain;" onerror="this.style.display='none'">
+            <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 1.4rem; color: #0f172a;">TI Plus</h2>
+        </div>
+        <div style="text-align: right; font-family: 'Outfit', sans-serif; color: #0f172a;">
+            <strong style="font-size: 1.1rem; letter-spacing: 1px;">RELATÓRIO TÉCNICO</strong><br>
+            <span id="print-report-date" style="font-size: 0.9rem; font-weight: 500;"></span>
+        </div>
+    </div>
+    
+    <div style="text-align: center; margin-bottom: 25px;">
+        <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.8rem; color: #000000; font-weight: 700; margin-bottom: 6px;">Relatório de Gestão</h1>
+        <p style="font-size: 1.1rem; color: #475569; font-weight: 500; margin: 0;">Infraestrutura de TI e Serviços Técnicos</p>
+        <p id="print-report-subtitle" style="font-size: 0.9rem; color: #64748b; margin-top: 6px;">Período Selecionado</p>
+    </div>
 </div>
 
 <div class="page-header no-print">
@@ -95,5 +109,18 @@
             <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Selecione o período e clique em Gerar Relatório.</td></tr>
         </tbody>
     </table>
+</div>
+
+<!-- ASSINATURA E RODAPÉ EXCLUSIVOS PARA IMPRESSÃO -->
+<div class="print-only-footer" style="display: none; margin-top: 50px;">
+    <div style="text-align: center; margin-bottom: 40px; page-break-inside: avoid;">
+        <div style="width: 250px; border-top: 1px solid #0f172a; margin: 0 auto 10px auto;"></div>
+        <strong style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: #0f172a;">Equipe TI Plus</strong><br>
+        <span style="font-size: 0.95rem; color: #475569;">Gestão de Infraestrutura e Suporte</span>
+    </div>
+    <div style="border-top: 2px solid #0f172a; padding-top: 10px; display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b;">
+        <span>TI Plus - Gestão de infraestrutura</span>
+        <span>Gerado pelo sistema DuplicatiShield</span>
+    </div>
 </div>
 {% endblock %}

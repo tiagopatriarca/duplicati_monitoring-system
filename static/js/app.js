@@ -629,11 +629,17 @@ async function loadReportsData() {
         // Atualizar Título e Período Exclusivo para Impressão
         const printTitle = document.getElementById('print-report-title');
         const printSub = document.getElementById('print-report-subtitle');
+        const printDate = document.getElementById('print-report-date');
+        
         if (printTitle) {
-            printTitle.textContent = `Relatório de Backup - ${data.client_name}`;
+            printTitle.textContent = `Relatório de Gestão - ${data.client_name}`;
         }
         if (printSub) {
-            printSub.textContent = `Período Selecionado: ${formatDateBR(start_date)} a ${formatDateBR(end_date)}`;
+            printSub.textContent = `Período: ${formatDateBR(start_date)} a ${formatDateBR(end_date)}`;
+        }
+        if (printDate) {
+            const today = new Date();
+            printDate.textContent = today.toLocaleDateString('pt-BR');
         }
 
         const tbody = document.getElementById('reports-tbody');
