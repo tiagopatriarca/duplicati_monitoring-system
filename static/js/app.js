@@ -632,7 +632,7 @@ async function loadReportsData() {
         const printDate = document.getElementById('print-report-date');
         
         if (printTitle) {
-            printTitle.textContent = `Relatório de Gestão - ${data.client_name}`;
+            printTitle.textContent = `Relatório de Backup - ${data.client_name}`;
         }
         if (printSub) {
             printSub.textContent = `Período: ${formatDateBR(start_date)} a ${formatDateBR(end_date)}`;

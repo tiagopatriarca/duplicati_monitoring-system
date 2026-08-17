@@ -17,7 +17,7 @@
     </div>
     
     <div style="text-align: center; margin-bottom: 25px;">
-        <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.8rem; color: #000000; font-weight: 700; margin-bottom: 6px;">Relatório de Gestão</h1>
+        <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.8rem; color: #000000; font-weight: 700; margin-bottom: 6px;">Relatório de Backup</h1>
         <p style="font-size: 1.1rem; color: #475569; font-weight: 500; margin: 0;">Infraestrutura de TI e Serviços Técnicos</p>
         <p id="print-report-subtitle" style="font-size: 0.9rem; color: #64748b; margin-top: 6px;">Período Selecionado</p>
     </div>
@@ -115,7 +115,7 @@
 <div class="print-only-footer" style="display: none; margin-top: 50px;">
     <div style="text-align: center; margin-bottom: 40px; page-break-inside: avoid;">
         <div style="width: 250px; border-top: 1px solid #0f172a; margin: 0 auto 10px auto;"></div>
-        <strong style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: #0f172a;">Equipe TI Plus</strong><br>
+        <strong style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: #0f172a;">{{ current_user.username if current_user.is_authenticated else 'Equipe TI Plus' }}</strong><br>
         <span style="font-size: 0.95rem; color: #475569;">Gestão de Infraestrutura e Suporte</span>
     </div>
     <div style="border-top: 2px solid #0f172a; padding-top: 10px; display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b;">
