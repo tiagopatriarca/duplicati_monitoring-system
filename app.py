@@ -56,9 +56,7 @@ def init_db_with_fallback():
         db.create_all()
 
     try:
-        seed_initial_data()
-        
-        # Migração: Adicionar first_name e last_name caso não existam
+        # Migração: Adicionar first_name e last_name caso não existam ANTES de qualquer query no banco
         with db.engine.connect() as conn:
             try:
                 conn.execute(text("ALTER TABLE `users` ADD COLUMN first_name VARCHAR(100)"))
@@ -67,6 +65,8 @@ def init_db_with_fallback():
             except Exception:
                 pass # Ignora erro se a coluna já existir
 
+        seed_initial_data()
+        
         # Garantir permissão total para o grupo Administradores (usando crases para o MySQL 8.0)
         with db.engine.connect() as conn:
             conn.execute(text("UPDATE `groups` SET can_view_all_clients = 1 WHERE id = 1 OR name = 'Administradores'"))
