@@ -24,6 +24,7 @@
             <tr>
                 <th>ID</th>
                 <th>Nome de Usuário</th>
+                <th>Nome Completo</th>
                 <th>E-mail</th>
                 <th>Grupo de Permissão</th>
                 <th>Status</th>
@@ -32,7 +33,7 @@
             </tr>
         </thead>
         <tbody id="users-tbody">
-            <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando usuários...</td></tr>
+            <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Carregando usuários...</td></tr>
         </tbody>
     </table>
 </div>
@@ -69,6 +70,16 @@
             <div class="form-group">
                 <label>Nome de Usuário (Login) *</label>
                 <input type="text" id="user-username" class="form-control" required placeholder="Ex: suporte_alfa">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Nome</label>
+                    <input type="text" id="user-firstname" class="form-control" placeholder="João">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Sobrenome</label>
+                    <input type="text" id="user-lastname" class="form-control" placeholder="Silva">
+                </div>
             </div>
             <div class="form-group">
                 <label>E-mail *</label>
@@ -155,6 +166,7 @@
                     <tr>
                         <td>#${u.id}</td>
                         <td><strong>${escapeHtml(u.username)}</strong></td>
+                        <td>${escapeHtml(((u.first_name || '') + ' ' + (u.last_name || '')).trim() || '-')}</td>
                         <td>${escapeHtml(u.email || '-')}</td>
                         <td><span class="detail-pill">${escapeHtml(u.group_name)}</span></td>
                         <td><span class="status-badge ${u.active ? 'Success' : 'Error'}">${u.active ? 'Ativo' : 'Inativo'}</span></td>
@@ -214,6 +226,8 @@
     async function createUser(event) {
         event.preventDefault();
         const username = document.getElementById('user-username').value;
+        const first_name = document.getElementById('user-firstname').value;
+        const last_name = document.getElementById('user-lastname').value;
         const email = document.getElementById('user-email').value;
         const password = document.getElementById('user-password').value;
         const group_id = document.getElementById('user-group-id').value;
@@ -221,7 +235,7 @@
         const res = await fetch('/api/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, email, password, group_id })
+            body: JSON.stringify({ username, first_name, last_name, email, password, group_id })
         });
         const data = await res.json();
 

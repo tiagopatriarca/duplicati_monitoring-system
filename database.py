@@ -45,6 +45,8 @@ class User(UserMixin, db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
+    first_name = db.Column(db.String(100), nullable=True)
+    last_name = db.Column(db.String(100), nullable=True)
     email = db.Column(db.String(150), nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
     group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=True)
@@ -68,6 +70,8 @@ class User(UserMixin, db.Model):
         return {
             'id': self.id,
             'username': self.username,
+            'first_name': self.first_name or '',
+            'last_name': self.last_name or '',
             'email': self.email or '',
             'group_id': self.group_id,
             'group_name': self.group.name if self.group else 'Sem Grupo',

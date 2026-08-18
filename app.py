@@ -57,6 +57,16 @@ def init_db_with_fallback():
 
     try:
         seed_initial_data()
+        
+        # Migração: Adicionar first_name e last_name caso não existam
+        with db.engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE `users` ADD COLUMN first_name VARCHAR(100)"))
+                conn.execute(text("ALTER TABLE `users` ADD COLUMN last_name VARCHAR(100)"))
+                conn.commit()
+            except Exception:
+                pass # Ignora erro se a coluna já existir
+
         # Garantir permissão total para o grupo Administradores (usando crases para o MySQL 8.0)
         with db.engine.connect() as conn:
             conn.execute(text("UPDATE `groups` SET can_view_all_clients = 1 WHERE id = 1 OR name = 'Administradores'"))
@@ -130,10 +140,18 @@ def api_update_profile():
         data = request.json or {}
         email = data.get('email')
         password = data.get('password')
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
 
-        if email:
+        if email is not None:
             current_user.email = email
-        
+            
+        if first_name is not None:
+            current_user.first_name = first_name
+            
+        if last_name is not None:
+            current_user.last_name = last_name
+
         if password and len(password.strip()) > 0:
             if len(password.strip()) < 6:
                 return jsonify({'error': 'A nova senha deve ter no mínimo 6 caracteres'}), 400
@@ -536,6 +554,8 @@ def api_users():
         username = data.get('username')
         password = data.get('password')
         group_id = data.get('group_id')
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
 
         if not username or not password or not group_id:
             return jsonify({'error': 'Usuário, senha e grupo são obrigatórios'}), 400
@@ -545,6 +565,8 @@ def api_users():
 
         user = User(
             username=username,
+            first_name=first_name,
+            last_name=last_name,
             email=data.get('email'),
             group_id=int(group_id),
             active=True
@@ -554,15 +576,35 @@ def api_users():
         db.session.commit()
         return jsonify(user.to_dict()), 201
 
-@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@app.route('/api/users/<int:user_id>', methods=['PUT', 'DELETE'])
 @login_required
-def api_delete_user(user_id):
+def api_edit_user(user_id):
     user = User.query.get_or_404(user_id)
-    if user.username == 'admin':
-        return jsonify({'error': 'O usuário administrador principal não pode ser excluído'}), 400
-    db.session.delete(user)
-    db.session.commit()
-    return jsonify({'success': True})
+    
+    if request.method == 'PUT':
+        data = request.json or {}
+        password = data.get('password')
+        group_id = data.get('group_id')
+        
+        user.first_name = data.get('first_name', user.first_name)
+        user.last_name = data.get('last_name', user.last_name)
+        user.email = data.get('email', user.email)
+        
+        if group_id:
+            user.group_id = int(group_id)
+            
+        if password and len(password.strip()) > 0:
+            user.set_password(password.strip())
+            
+        db.session.commit()
+        return jsonify(user.to_dict())
+
+    if request.method == 'DELETE':
+        if user.username == 'admin':
+            return jsonify({'error': 'O usuário administrador principal não pode ser excluído'}), 400
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({'success': True})
 
 @app.route('/api/groups', methods=['GET', 'POST'])
 @login_required

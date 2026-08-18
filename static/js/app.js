@@ -416,12 +416,14 @@ async function updateProfile(event) {
     event.preventDefault();
     const email = document.getElementById('profile-email').value;
     const password = document.getElementById('profile-password').value;
+    const first_name = document.getElementById('profile-firstname').value;
+    const last_name = document.getElementById('profile-lastname').value;
 
     try {
         const res = await fetch('/api/profile', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email, password, first_name, last_name })
         });
         const data = await res.json();
 

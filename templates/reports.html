@@ -115,7 +115,17 @@
 <div class="print-only-footer" style="display: none; margin-top: 50px;">
     <div style="text-align: center; margin-bottom: 40px; page-break-inside: avoid;">
         <div style="width: 250px; border-top: 1px solid #0f172a; margin: 0 auto 10px auto;"></div>
-        <strong style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: #0f172a;">{{ current_user.username if current_user.is_authenticated else 'Equipe TI Plus' }}</strong><br>
+        <strong style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: #0f172a;">
+            {% if current_user.is_authenticated %}
+                {% if current_user.first_name %}
+                    {{ (current_user.first_name ~ ' ' ~ (current_user.last_name or '')).strip() }}
+                {% else %}
+                    {{ current_user.username }}
+                {% endif %}
+            {% else %}
+                Equipe TI Plus
+            {% endif %}
+        </strong><br>
         <span style="font-size: 0.95rem; color: #475569;">Gestão de Infraestrutura e Suporte</span>
     </div>
     <div style="border-top: 2px solid #0f172a; padding-top: 10px; display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b;">
